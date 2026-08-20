@@ -1,0 +1,250 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("SUPABASE_URL")
+  directUrl = env("SUPABASE_DIRECT_URL")
+}
+
+
+// ------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------
+
+enum Role {
+  SUPER_ADMIN
+  MANAGER_DIVISION
+  TECHNICIAN
+  STAFF
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum NotificationType {
+  ASSIGNMENT
+  STATUS_CHANGE
+  DEADLINE_REMINDER
+}
+
+// ------------------------------------------------------
+// MODELS
+// ------------------------------------------------------
+
+model User {
+  id                 String              @id 
+  name               String
+  email              String              @unique
+  role               Role                @default(TECHNICIAN)
+  isActive           Boolean             @default(true) @map("is_active")
+  divisionId         String?             @map("division_id")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+
+  division           Division?           @relation(fields: [divisionId], references: [id], onDelete: SetNull)
+  teams              TeamMember[]
+  assignments        TaskAssignment[]
+  statusHistories    TaskStatusHistory[]
+  taskAttachments    TaskAttachment[] 
+  notifications        Notification[]
+  createdTasks       Task[]
+  createdReports     ServiceReport[]
+
+  @@map("users")
+}
+
+model Division {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  users       User[]
+  teams       Team[]
+  tasks       Task[]
+
+  @@map("divisions")
+}
+
+model Team {
+  id          String       @id @default(uuid())
+  name        String
+  divisionId  String       @map("division_id")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  division    Division     @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+  members     TeamMember[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String   @id @default(uuid())
+  teamId    String   @map("team_id")
+  userId    String   @map("user_id")
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@map("team_members")
+}
+
+model Client {
+  id          String   @id @default(uuid())
+  name        String
+  contact     String
+  email       String?
+  address     String
+  serviceType String   @map("service_type")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  assets      Asset[]
+  tasks       Task[]
+
+  @@map("clients")
+}
+
+model Asset {
+  id          String   @id @default(uuid())
+  name        String
+  serialNumber String?  @map("serial_number")
+  type        String
+  clientId    String   @map("client_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  tasks       Task[]
+
+  @@map("assets")
+}
+
+model Task {
+  id          String              @id @default(uuid())
+  title       String
+  description String
+  priority    Priority            @default(MEDIUM)
+  status      TaskStatus          @default(PENDING) 
+  dueDate     DateTime?           @map("due_date")
+  divisionId  String              @map("division_id")
+  clientId    String              @map("client_id")
+  assetId     String?             @map("asset_id")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+  createdById String   @map("created_by_id")
+
+  notifications Notification[]
+
+  createdBy  User                @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  division    Division            @relation(fields: [divisionId], references: [id], onDelete: Restrict)
+  client      Client              @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  asset       Asset?              @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  assignments TaskAssignment[]
+  histories   TaskStatusHistory[]
+  attachments TaskAttachment[]
+  reports     ServiceReport[]
+
+  @@index([status])
+  @@index([dueDate])
+  @@index([divisionId])
+
+  @@map("tasks")
+}
+
+model TaskAssignment {
+  id         String   @id @default(uuid())
+  taskId     String   @map("task_id")
+  userId     String   @map("user_id")
+  assignedAt DateTime @default(now()) @map("assigned_at")
+
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@map("task_assignments")
+}
+
+model TaskStatusHistory {
+  id        String     @id @default(uuid())
+  taskId    String     @map("task_id")
+  userId    String     @map("user_id")
+  oldStatus TaskStatus @map("old_status")
+  newStatus TaskStatus @map("new_status")
+  changedAt DateTime   @default(now()) @map("changed_at")
+
+  task      Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@map("task_status_history")
+}
+
+model TaskAttachment {
+  id         String   @id @default(uuid())
+  taskId     String   @map("task_id")
+  fileUrl    String   @map("file_url")
+  fileName   String   @map("file_name")
+  fileType   String   @map("file_type")
+  uploadedAt DateTime @default(now()) @map("uploaded_at")
+  uploadedById String   @map("uploaded_by_id")
+
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedBy User     @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@map("task_attachments")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+  relatedTaskId String? @map("related_task_id")
+
+  relatedTask Task? @relation(fields: [relatedTaskId], references: [id], onDelete: SetNull)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+
+  @@map("notifications")
+}
+
+model ServiceReport {
+  id          String   @id @default(uuid())
+  taskId      String   @map("task_id")
+  createdById String   @map("created_by_id")
+  summary     String
+  actionTaken String   @map("action_taken")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  snapshotData Json @map("snapshot_data")
+
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@map("service_reports")
+}

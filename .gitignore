@@ -68,3 +68,8 @@ coverage/
 # OS / System Files
 .DS_Store
 Thumbs.db
+
+# Other
+.agents
+.claude
+.windsurf
