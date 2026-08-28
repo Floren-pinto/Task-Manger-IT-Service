@@ -47,7 +47,7 @@ USING(
             OR (
                 get_my_role() = 'TECHNICIAN' 
                 AND tasks.division_id = get_my_division() 
-                AND task_attachments.uploaded_by_id = auth.uid() 
+                AND task_attachments.uploaded_by_id = auth.uid()::text
                 AND tasks.deleted_at IS NULL
                 )
         )
