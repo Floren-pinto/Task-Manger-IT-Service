@@ -245,3 +245,5 @@ ALTER TABLE "service_reports" ADD CONSTRAINT "service_reports_task_id_fkey" FORE
 
 -- AddForeignKey
 ALTER TABLE "service_reports" ADD CONSTRAINT "service_reports_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- final setup
