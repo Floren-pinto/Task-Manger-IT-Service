@@ -26,8 +26,9 @@ RETURNS TRIGGER AS $$
 DECLARE new_task_title TEXT;
 BEGIN
     SELECT title INTO new_task_title FROM tasks WHERE id = NEW.task_id;
-    INSERT INTO notifications (user_id, title, message, type,  created_at, related_task_id, is_read)
+    INSERT INTO notifications (id, user_id, title, message, type,  created_at, related_task_id, is_read)
     VALUES (
+        gen_random_uuid(),
         NEW.user_id, 
         'new task assigned', 
         CONCAT('You have been assigned a new task: "', new_task_title, '"'),
