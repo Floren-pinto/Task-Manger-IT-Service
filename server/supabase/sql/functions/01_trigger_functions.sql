@@ -26,8 +26,9 @@ RETURNS TRIGGER AS $$
 DECLARE new_task_title TEXT;
 BEGIN
     SELECT title INTO new_task_title FROM tasks WHERE id = NEW.task_id;
-    INSERT INTO notifications (user_id, title, message, type,  created_at, related_task_id, is_read)
+    INSERT INTO notifications (id, user_id, title, message, type,  created_at, related_task_id, is_read)
     VALUES (
+        gen_random_uuid(),
         NEW.user_id, 
         'new task assigned', 
         CONCAT('You have been assigned a new task: "', new_task_title, '"'),
@@ -70,3 +71,32 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- function to denied user to update sensetife columns in users table
+CREATE OR REPLACE FUNCTION enforce_user_column_restrictions()
+RETURNS TRIGGER AS $$
+DECLARE
+    allowed_columns_self    text[] := ARRAY['name', 'email'];
+    allowed_columns_manager text[] := ARRAY['is_active'];
+BEGIN
+    IF get_my_role() = 'SUPER_ADMIN' THEN
+        RETURN NEW;
+    END IF;
+
+    IF OLD.id = auth.uid()::text THEN
+        IF to_jsonb(OLD.*) - allowed_columns_self <> to_jsonb(NEW.*) - allowed_columns_self THEN
+            RAISE EXCEPTION 'You are only allowed to update your own name and email';
+        END IF;
+        RETURN NEW;
+    END IF;
+
+    IF get_my_role() = 'MANAGER_DIVISION' AND OLD.division_id = get_my_division() THEN
+        IF to_jsonb(OLD.*) - allowed_columns_manager <> to_jsonb(NEW.*) - allowed_columns_manager THEN
+            RAISE EXCEPTION 'MANAGER_DIVISION may only update is_active for users in their division';
+        END IF;
+        RETURN NEW;
+    END IF;
+
+    RAISE EXCEPTION 'You are not allowed to update this user';
+END;
+$$ LANGUAGE plpgsql;

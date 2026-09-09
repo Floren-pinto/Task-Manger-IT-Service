@@ -28,6 +28,6 @@ USING(
     OR (get_my_role() = 'TECHNICIAN' AND division_id = get_my_division() AND deleted_at IS NULL)
 )
 WITH CHECK(
-    (deleted_at IS NULL AND get_my_role() != 'TECHNICIAN')
+    (deleted_at IS NULL AND get_my_role() IN ('STAFF', 'TECHNICIAN'))
     OR get_my_role() IN ('SUPER_ADMIN', 'MANAGER_DIVISION')
 );

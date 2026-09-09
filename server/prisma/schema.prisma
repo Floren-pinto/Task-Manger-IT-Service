@@ -5,8 +5,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("SUPABASE_URL")
-  directUrl = env("SUPABASE_DIRECT_URL")
 }
 
 
@@ -53,8 +51,9 @@ model User {
   role               Role                @default(TECHNICIAN)
   isActive           Boolean             @default(true) @map("is_active")
   divisionId         String?             @map("division_id")
+  deleted_at         DateTime?           @map("deleted_at")
   createdAt          DateTime            @default(now()) @map("created_at")
-  updatedAt          DateTime            @updatedAt @map("updated_at")
+  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at")
 
   division           Division?           @relation(fields: [divisionId], references: [id], onDelete: SetNull)
   teams              TeamMember[]
@@ -73,7 +72,7 @@ model Division {
   name        String   @unique
   description String?
   createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
 
   users       User[]
   teams       Team[]
@@ -87,7 +86,7 @@ model Team {
   name        String
   divisionId  String       @map("division_id")
   createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
+  updatedAt   DateTime     @default(now()) @updatedAt @map("updated_at")
 
   division    Division     @relation(fields: [divisionId], references: [id], onDelete: Cascade)
   members     TeamMember[]
@@ -117,7 +116,7 @@ model Client {
   serviceType String   @map("service_type")
   deletedAt   DateTime? @map("deleted_at")
   createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
 
   assets      Asset[]
   tasks       Task[]
@@ -133,7 +132,7 @@ model Asset {
   clientId    String   @map("client_id")
   deletedAt   DateTime? @map("deleted_at")
   createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
 
   client      Client   @relation(fields: [clientId], references: [id], onDelete: Restrict)
   tasks       Task[]
@@ -153,7 +152,7 @@ model Task {
   assetId     String?             @map("asset_id")
   deletedAt   DateTime?           @map("deleted_at")
   createdAt   DateTime            @default(now()) @map("created_at")
-  updatedAt   DateTime            @updatedAt @map("updated_at")
+  updatedAt   DateTime            @default(now()) @updatedAt @map("updated_at")
   createdById String   @map("created_by_id")
 
   notifications Notification[]
@@ -242,7 +241,7 @@ model ServiceReport {
   actionTaken String   @map("action_taken")
   notes       String?
   createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
 
   snapshotData Json @map("snapshot_data")
 
