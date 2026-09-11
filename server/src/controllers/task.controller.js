@@ -37,3 +37,58 @@ export const listTasks = asyncHandler(async (req, res) => {
     },
   });
 });
+
+import crypto from "node:crypto";
+import { created } from "../utils/ApiResponse.js";
+
+export const createTask = asyncHandler(async (req, res) => {
+  const {
+    title,
+    description,
+    priority,
+    dueDate,
+    divisionId,
+    clientId,
+    assetId,
+  } = req.body;
+
+  if (!title || !description || !divisionId || !clientId) {
+    throw new ApiError(
+      400,
+      "title, description, divisionId, and clientId are required",
+    );
+  }
+
+  if (req.profile.role === "TECHNICIAN") {
+    throw new ApiError(403, "Technicians are not allowed to create tasks");
+  }
+
+  const { data, error } = await req.supabase
+    .from("tasks")
+    .insert({
+      id: crypto.randomUUID(),
+      title,
+      description,
+      priority,
+      due_date: dueDate ?? null,
+      division_id: divisionId,
+      client_id: clientId,
+      asset_id: assetId ?? null,
+      created_by_id: req.user.id,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === "23503") {
+      throw new ApiError(
+        400,
+        "Invalid divisionId, clientId, or assetId",
+        error.message,
+      );
+    }
+    throw new ApiError(500, "Failed to create task", error.message);
+  }
+
+  return created(res, data, "Task created");
+});
