@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import swaggerUiRouter from "./docs/swagger-ui.js";
 import routes from "./routes/index.js";
 import {
   errorHandler,
@@ -13,6 +14,8 @@ export function createApp() {
   app.use(express.json());
 
   app.get("/health", (req, res) => res.json({ status: "ok" }));
+  app.use(swaggerUiRouter);
+
   app.use("/api", routes);
 
   app.use(notFoundHandler);
