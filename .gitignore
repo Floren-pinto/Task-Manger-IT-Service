@@ -75,4 +75,4 @@ Thumbs.db
 .windsurf
 provisory.sql
 server/generated/*
-dummy_data.sql
+dummy_data.*
