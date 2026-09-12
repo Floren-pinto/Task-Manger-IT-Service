@@ -25,11 +25,16 @@ TO authenticated
 WITH CHECK (
     EXISTS (
         SELECT 1 FROM tasks
+        JOIN users ON users.id = task_assignments.user_id
         WHERE tasks.id = task_assignments.task_id
         AND (
             (get_my_role() IN ('MANAGER_DIVISION', 'SUPER_ADMIN'))
             OR (get_my_role() = 'STAFF' AND tasks.deleted_at IS NULL)
         )
+        AND users.role = 'TECHNICIAN'
+        AND users.deleted_at IS NULL
+        AND users.is_active = TRUE
+        AND users.division_id = tasks.division_id
     )
 );
 -- UPDATE POLICY
