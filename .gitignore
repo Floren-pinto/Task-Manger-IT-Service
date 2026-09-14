@@ -76,3 +76,4 @@ Thumbs.db
 provisory.sql
 server/generated/*
 dummy_data.*
+*.http
