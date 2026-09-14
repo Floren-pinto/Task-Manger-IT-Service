@@ -2,6 +2,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ok } from "../utils/ApiResponse.js";
 
+// GET TASK
 export const listTasks = asyncHandler(async (req, res) => {
   const { status, priority, page = 1, limit = 20 } = req.query;
 
@@ -41,6 +42,7 @@ export const listTasks = asyncHandler(async (req, res) => {
 import crypto from "node:crypto";
 import { created } from "../utils/ApiResponse.js";
 
+// CREATE TASK
 export const createTask = asyncHandler(async (req, res) => {
   const {
     title,
@@ -91,4 +93,107 @@ export const createTask = asyncHandler(async (req, res) => {
   }
 
   return created(res, data, "Task created");
+});
+
+// ASSIGN TASK
+export const assignTask = asyncHandler(async (req, res) => {
+  const { taskId } = req.params;
+  const { userId } = req.body;
+
+  if (!userId) throw new ApiError(400, "User Id is required");
+
+  if (req.profile.role === "TECHNICIAN")
+    throw new ApiError(403, "Technicians are not allowed to assign tasks");
+
+  const { data: task, error: taskError } = await req.supabase
+    .from("tasks")
+    .select("id, division_id, deleted_at")
+    .eq("id", taskId)
+    .single();
+
+  if (taskError || !task)
+    throw new ApiError(404, "Task not found or accessible");
+  if (task.deleted_at) throw new ApiError(400, "cannot assign a deleted task");
+
+  const { data: assignee, error: assigneeError } = await req.supabase
+    .from("users")
+    .select("id, role, division_id, is_active, deleted_at")
+    .eq("id", userId)
+    .single();
+
+  if (assigneeError || !assignee)
+    throw new ApiError(404, "User not found or accessible");
+  if (assignee.role !== "TECHNICIAN")
+    throw new ApiError(400, "assigneee must be a technician");
+  if (assignee.division_id !== task.division_id)
+    throw new ApiError(
+      400,
+      "assigneee must belong to the same division as the task",
+    );
+  if (!assignee.is_active || assignee.deleted_at)
+    throw new ApiError(400, "assignee is not active");
+
+  const { data, error } = await req.supabase
+    .from("task_assignments")
+    .insert({
+      id: crypto.randomUUID(),
+      task_id: taskId,
+      user_id: userId,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === "23505") {
+      throw new ApiError(409, "This user is already assigned to this task");
+    }
+    if (error.code === "23503") {
+      throw new ApiError(400, "Invalid taskId or userId", error.message);
+    }
+    throw new ApiError(500, "Failed to assign task", error.message);
+  }
+  return created(res, data, "Task assigned");
+});
+
+export const updateTaskStatus = asyncHandler(async (req, res) => {
+  const { taskId } = req.params;
+  const { newStatus } = req.body;
+
+  if (!newStatus) throw new ApiError(400, "New status is required");
+
+  if (req.profile.role === "STAFF") {
+    throw new ApiError(403, "Staff are not allowed to update task status");
+  }
+
+  const { error: rpcError } = await req.supabase.rpc("update_task_status", {
+    p_task_id: taskId,
+    p_new_status: newStatus,
+  });
+
+  if (rpcError) {
+    if (rpcError.message?.includes("TASK_NOT_FOUND")) {
+      throw new ApiError(404, "Task not found or accessible");
+    }
+    if (rpcError.message?.includes("SAME_STATUS")) {
+      throw new ApiError(400, "New status is the same as the current status");
+    }
+    if (rpcError.code === "22p02") {
+      throw new ApiError(400, `invalid status value ${newStatus}`);
+    }
+    if (rpcError.message?.includes("only update")) {
+      throw new ApiError(403, "You are not allowed to change task status");
+    }
+    throw new ApiError(500, "Failed to update task status", rpcError.message);
+  }
+
+  const { data, error } = await req.supabase
+    .from("tasks")
+    .select("*")
+    .eq("id", taskId)
+    .single();
+
+  if (error || !data)
+    throw new ApiError(500, "Status updated but failed to fetch latest data");
+
+  return ok(res, data, "Task status updated");
 });
