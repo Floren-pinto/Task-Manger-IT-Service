@@ -6,11 +6,11 @@ BEGIN
     SELECT status INTO v_old_status FROM tasks WHERE id = p_task_id FOR UPDATE;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'Task not found';
+        RAISE EXCEPTION 'TASK_NOT_FOUND';
     END IF;
 
     IF v_old_status = p_new_status THEN
-        RAISE EXCEPTION 'same status';
+        RAISE EXCEPTION 'SAME_STATUS';
     END IF;
 
     UPDATE tasks SET status = p_new_status WHERE id = p_task_id;
