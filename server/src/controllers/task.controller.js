@@ -154,3 +154,46 @@ export const assignTask = asyncHandler(async (req, res) => {
   }
   return created(res, data, "Task assigned");
 });
+
+export const updateTaskStatus = asyncHandler(async (req, res) => {
+  const { taskId } = req.params;
+  const { newStatus } = req.body;
+
+  if (!newStatus) throw new ApiError(400, "New status is required");
+
+  if (req.profile.role === "STAFF") {
+    throw new ApiError(403, "Staff are not allowed to update task status");
+  }
+
+  const { error: rpcError } = await req.supabase.rpc("update_task_status", {
+    p_task_id: taskId,
+    p_new_status: newStatus,
+  });
+
+  if (rpcError) {
+    if (rpcError.message?.includes("TASK_NOT_FOUND")) {
+      throw new ApiError(404, "Task not found or accessible");
+    }
+    if (rpcError.message?.includes("SAME_STATUS")) {
+      throw new ApiError(400, "New status is the same as the current status");
+    }
+    if (rpcError.code === "22p02") {
+      throw new ApiError(400, `invalid status value ${newStatus}`);
+    }
+    if (rpcError.message?.includes("only update")) {
+      throw new ApiError(403, "You are not allowed to change task status");
+    }
+    throw new ApiError(500, "Failed to update task status", rpcError.message);
+  }
+
+  const { data, error } = await req.supabase
+    .from("tasks")
+    .select("*")
+    .eq("id", taskId)
+    .single();
+
+  if (error || !data)
+    throw new ApiError(500, "Status updated but failed to fetch latest data");
+
+  return ok(res, data, "Task status updated");
+});
