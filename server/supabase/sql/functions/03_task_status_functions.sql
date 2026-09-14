@@ -1,7 +1,7 @@
 CREATE OR REPLACE FUNCTION update_task_status(p_task_id text, p_new_status "TaskStatus")
 RETURNS VOID AS $$
 DECLARE
-    v_old_status "TaskStatus"
+    v_old_status "TaskStatus";
 BEGIN
     SELECT status INTO v_old_status FROM tasks WHERE id = p_task_id FOR UPDATE;
 
