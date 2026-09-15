@@ -1,8 +1,8 @@
 -- function to enforce column restrictions for tasks table based on user role
 CREATE OR REPLACE FUNCTION enforce_task_column_restrictions()
 RETURNS TRIGGER AS $$
-DECLARE allowed_columns_technician text[] := ARRAY['status', 'description'];
-        allowed_columns_staff text[] := ARRAY['priority', 'due_date'];
+DECLARE allowed_columns_technician text[] := ARRAY['status', 'description', 'updated_at'];
+        allowed_columns_staff text[] := ARRAY['priority', 'due_date', 'updated_at'];
 BEGIN
     IF get_my_role() IN ('TECHNICIAN')
     AND (
@@ -76,8 +76,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION enforce_user_column_restrictions()
 RETURNS TRIGGER AS $$
 DECLARE
-    allowed_columns_self    text[] := ARRAY['name', 'email'];
-    allowed_columns_manager text[] := ARRAY['is_active'];
+    allowed_columns_self    text[] := ARRAY['name', 'email', 'updated_at'];
+    allowed_columns_manager text[] := ARRAY['is_active', 'updated_at'];
 BEGIN
     IF get_my_role() = 'SUPER_ADMIN' THEN
         RETURN NEW;
