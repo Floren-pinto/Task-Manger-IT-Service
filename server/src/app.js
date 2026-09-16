@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import boolParser from "express-query-boolean";
+
 import swaggerUiRouter from "./docs/swagger-ui.js";
 import routes from "./routes/index.js";
 import {
@@ -12,6 +14,7 @@ export function createApp() {
 
   app.use(cors()); // TODO: batasi origin sebelum production
   app.use(express.json());
+  app.use(boolParser());
 
   app.get("/health", (req, res) => res.json({ status: "ok" }));
   app.use(swaggerUiRouter);
