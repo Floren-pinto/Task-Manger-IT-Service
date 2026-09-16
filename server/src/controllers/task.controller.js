@@ -14,7 +14,7 @@ export const listTasks = asyncHandler(async (req, res) => {
   let query = req.supabase
     .from("tasks")
     .select(
-      `id, title, description, priority, status, due_date, created_at, client:clients(id, name), division:divisions(id, name)`,
+      `id, title, description, priority, status, due_date, created_at, updated_at, client:clients(id, name), division:divisions(id, name)`,
       { count: "exact" },
     )
     .order("created_at", { ascending: false })
@@ -27,7 +27,7 @@ export const listTasks = asyncHandler(async (req, res) => {
     query = query.eq("priority", priority);
   }
   const { data, count, error } = await query;
-  if (error) throw new ApiError(500, "Failed to fetch tasks", error.message);
+  if (error) throw new ApiError(500, "Failed to fetch tasks");
 
   return ok(res, {
     tasks: data,
@@ -89,7 +89,10 @@ export const createTask = asyncHandler(async (req, res) => {
         error.message,
       );
     }
-    throw new ApiError(500, "Failed to create task", error.message);
+    if (error.code === "22P02") {
+      throw new ApiError(400, "Invalid priority value");
+    }
+    throw new ApiError(500, "Failed to create task");
   }
 
   return created(res, data, "Task created");
@@ -122,13 +125,13 @@ export const assignTask = asyncHandler(async (req, res) => {
     .single();
 
   if (assigneeError || !assignee)
-    throw new ApiError(404, "User not found or accessible");
+    throw new ApiError(404, "User not found or not accessible");
   if (assignee.role !== "TECHNICIAN")
-    throw new ApiError(400, "assigneee must be a technician");
+    throw new ApiError(400, "assignee must be a technician");
   if (assignee.division_id !== task.division_id)
     throw new ApiError(
       400,
-      "assigneee must belong to the same division as the task",
+      "assignee must belong to the same division as the task",
     );
   if (!assignee.is_active || assignee.deleted_at)
     throw new ApiError(400, "assignee is not active");
@@ -150,11 +153,12 @@ export const assignTask = asyncHandler(async (req, res) => {
     if (error.code === "23503") {
       throw new ApiError(400, "Invalid taskId or userId", error.message);
     }
-    throw new ApiError(500, "Failed to assign task", error.message);
+    throw new ApiError(500, "Failed to assign task");
   }
   return created(res, data, "Task assigned");
 });
 
+// Update Task Status
 export const updateTaskStatus = asyncHandler(async (req, res) => {
   const { taskId } = req.params;
   const { newStatus } = req.body;
@@ -177,13 +181,13 @@ export const updateTaskStatus = asyncHandler(async (req, res) => {
     if (rpcError.message?.includes("SAME_STATUS")) {
       throw new ApiError(400, "New status is the same as the current status");
     }
-    if (rpcError.code === "22p02") {
+    if (rpcError.code === "22P02") {
       throw new ApiError(400, `invalid status value ${newStatus}`);
     }
     if (rpcError.message?.includes("only update")) {
       throw new ApiError(403, "You are not allowed to change task status");
     }
-    throw new ApiError(500, "Failed to update task status", rpcError.message);
+    throw new ApiError(500, "Failed to update task status");
   }
 
   const { data, error } = await req.supabase
