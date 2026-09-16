@@ -14,7 +14,7 @@ export const listTasks = asyncHandler(async (req, res) => {
   let query = req.supabase
     .from("tasks")
     .select(
-      `id, title, description, priority, status, due_date, created_at, client:clients(id, name), division:divisions(id, name)`,
+      `id, title, description, priority, status, due_date, created_at, updated_at, client:clients(id, name), division:divisions(id, name)`,
       { count: "exact" },
     )
     .order("created_at", { ascending: false })
