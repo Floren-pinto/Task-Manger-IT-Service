@@ -7,6 +7,6 @@ import {
 const router = Router();
 
 router.get("/", listNotifications);
-router.patch("/:notificationId/read", updateIsReadNotification);
+router.patch("/:id", updateIsReadNotification);
 
 export default router;

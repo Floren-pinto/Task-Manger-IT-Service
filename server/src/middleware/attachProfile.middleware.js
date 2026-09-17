@@ -12,7 +12,7 @@ export const attachProfile = asyncHandler(async (req, res, next) => {
     throw new ApiError(404, "profile not found or inaccesible");
   }
 
-  if (!data.is_active) {
+  if (!data.is_active || data.deleted_at) {
     throw new ApiError(403, "Account is inactive");
   }
 

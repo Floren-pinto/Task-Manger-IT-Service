@@ -1,9 +1,8 @@
 import express from "express";
 import cors from "cors";
-import boolParser from "express-query-boolean";
-
 import swaggerUiRouter from "./docs/swagger-ui.js";
 import routes from "./routes/index.js";
+import { boolParser } from "./middleware/queryBoolean.middleware.js";
 import {
   errorHandler,
   notFoundHandler,

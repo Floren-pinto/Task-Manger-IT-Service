@@ -1,7 +1,6 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ok } from "../utils/ApiResponse.js";
-import { type } from "os";
 
 export const listNotifications = asyncHandler(async (req, res) => {
   const { isRead, page = 1, limit = 20 } = req.query;
@@ -18,7 +17,11 @@ export const listNotifications = asyncHandler(async (req, res) => {
     .range(from, to);
 
   if (isRead) {
-    query = query.eq("is_read", isRead);
+    if (typeof isRead === "boolean") {
+      query = query.eq("is_read", isRead);
+    } else {
+      throw new ApiError(400, "Invalid isRead query parameter");
+    }
   }
 
   const { data, count, error } = await query;
@@ -36,13 +39,17 @@ export const listNotifications = asyncHandler(async (req, res) => {
 });
 
 export const updateIsReadNotification = asyncHandler(async (req, res) => {
-  const { notificationId } = req.params;
+  const { id } = req.params;
 
   const { data, error } = await req.supabase
     .from("notifications")
     .update({ is_read: true })
-    .eq("id", notificationId)
+    .eq("id", id)
+    .select()
     .single();
+
+  if (error.code === "PGRST116")
+    throw new ApiError(404, "Notification not found");
 
   if (error) throw new ApiError(500, "Failed to update notification");
 
