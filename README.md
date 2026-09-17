@@ -80,19 +80,19 @@ The `clients` table provides role-based access where `MANAGER_DIVISION` has full
 - [x] Express backend skeleton (routing, middleware, JWT verification dari Supabase)
 - [x] RBAC middleware & protected routes (FR-02, FR-04)
 - [x] Task Management (create, assign, status update — FR-20–FR-27)
+- [x] Notification
+- [x] Task Assignment
 
 ### In Progress
 
 - [ ] Authentication (Supabase Auth di frontend — FR-01)
-- [ ] Task Assignment
 - [ ] Task Status History
+- [ ] Client Management
 
 ### Planned
 
 - [ ] Task Attachments
-- [ ] Client Management
 - [ ] Service Reports
-- [ ] Notification
 - [ ] Dashboard & Reporting
 
 ## Feature Improvements
