@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import swaggerUiRouter from "./docs/swagger-ui.js";
 import routes from "./routes/index.js";
+import { boolParser } from "./middleware/queryBoolean.middleware.js";
 import {
   errorHandler,
   notFoundHandler,
@@ -12,6 +13,7 @@ export function createApp() {
 
   app.use(cors()); // TODO: batasi origin sebelum production
   app.use(express.json());
+  app.use(boolParser());
 
   app.get("/health", (req, res) => res.json({ status: "ok" }));
   app.use(swaggerUiRouter);
