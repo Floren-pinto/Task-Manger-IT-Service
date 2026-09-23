@@ -1,50 +1,100 @@
-import React, { createContext, useContext, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
+import {
+  getSession,
+  onAuthStateChange,
+  signInService,
+  signOutService,
+} from "../services/authService.js";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  // Mock initial state for learning and testing routing
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem("it_service_user");
-    return saved
-      ? JSON.parse(saved)
-      : {
-          id: "user-1",
-          name: "Sarah Jenkins",
-          role: "manager",
-          roleTitle: "Service Lead",
-          email: "sarah.jenkins@itops.local",
-          avatar:
-            "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=120",
-        };
-  });
+  const [user, setUser] = useState(null);
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const login = () => {
-    const newUser = {
-      id: "user-1",
-      name: "Sarah Jenkins",
-      role: "manager",
-      roleTitle: "Service Lead",
-      email: "sarah.jenkins@itops.local",
-      avatar:
-        "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=120",
+  useEffect(() => {
+    let mounted = true;
+
+    const initializeAuth = async () => {
+      setLoading(true);
+      const { data, error } = await getSession();
+
+      if (!mounted) return;
+
+      if (error) {
+        console.error("Session verification error:", error);
+        setSession(null);
+        setUser(null);
+      } else {
+        setSession(data.session);
+        setUser(data.session?.user || null);
+      }
+
+      setLoading(false);
     };
-    setUser(newUser);
-    localStorage.setItem("it_service_user", JSON.stringify(newUser));
+
+    initializeAuth();
+
+    const { data } = onAuthStateChange((event, newSession) => {
+      if (!mounted) return;
+      setSession(newSession);
+      setUser(newSession?.user || null);
+      setLoading(false);
+    });
+
+    return () => {
+      mounted = false;
+      data?.subscription?.unsubscribe();
+    };
+  }, []);
+
+  const signIn = useCallback(async (email, password) => {
+    try {
+      const { data, error } = await signInService(email, password);
+      if (error) throw error;
+      setSession(data.session);
+      setUser(data.session?.user || null);
+      return { success: true, data };
+    } catch (error) {
+      console.error("Sign in error:", error);
+      return { success: false, error };
+    }
+  }, []);
+
+  const signOut = useCallback(async () => {
+    try {
+      setLoading(true);
+      const { error } = await signOutService();
+      if (error) throw error;
+      setSession(null);
+      setUser(null);
+      return { success: true };
+    } catch (error) {
+      console.error("Sign out error:", error);
+      return { success: false, error };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const value = {
+    user,
+    session,
+    loading,
+    setLoading,
+    isAuthenticated: !!session,
+    signIn,
+    signOut,
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem("it_service_user");
-  };
-
-  return (
-    <AuthContext.Provider
-      value={{ user, isAuthenticated: !!user, login, logout }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

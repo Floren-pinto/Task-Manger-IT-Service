@@ -1,6 +1,5 @@
-import React from 'react';
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 export function ProtectedRoute() {
   const { isAuthenticated } = useAuth();
@@ -18,7 +17,7 @@ export function PublicRoute() {
   const location = useLocation();
 
   if (isAuthenticated) {
-    const from = location.state?.from?.pathname || '/dashboard';
+    const from = location.state?.from?.pathname || "/dashboard";
     return <Navigate to={from} replace />;
   }
 
