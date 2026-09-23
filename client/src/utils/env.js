@@ -1,8 +1,8 @@
-import dotenv from "dotenv";
-dotenv.config();
-
 function required(key) {
-  const value = process.env[key];
+  const value =
+    (typeof import.meta !== "undefined" && import.meta.env && import.meta.env[key]) ??
+    (typeof process !== "undefined" && process.env ? process.env[key] : undefined);
+
   if (!value) {
     throw new Error(`Missing required environment variable: ${key}`);
   }
@@ -17,3 +17,4 @@ export const env = {
   apiHealth: required("VITE_API_HEALTH"),
   apiKey: required("VITE_SUPABASE_ANON_KEY"),
 };
+

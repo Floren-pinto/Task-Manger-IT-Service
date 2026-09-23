@@ -1,5 +1,5 @@
-import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import React from "react";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Ticket,
@@ -7,27 +7,31 @@ import {
   Users,
   BarChart3,
   LogOut,
-} from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-import { useToast } from '../../contexts/ToastContext';
+} from "lucide-react";
+import { useAuth } from "../../contexts/AuthContext";
+import { useToast } from "../../contexts/ToastContext";
 
 const navigationLinks = [
-  { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-  { name: 'Tasks & Tickets', path: '/tasks', icon: Ticket },
-  { name: 'Divisions', path: '/divisions', icon: Network },
-  { name: 'Clients', path: '/clients', icon: Users },
-  { name: 'SLA Reports', path: '/reports', icon: BarChart3 },
+  { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+  { name: "Tasks & Tickets", path: "/tasks", icon: Ticket },
+  { name: "Divisions", path: "/divisions", icon: Network },
+  { name: "Clients", path: "/clients", icon: Users },
+  { name: "SLA Reports", path: "/reports", icon: BarChart3 },
 ];
 
 export default function Sidebar() {
-  const { user, logout } = useAuth();
+  const { user, signOut } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
-    toast.info('Anda telah keluar dari sistem.');
-    navigate('/login');
+  const handleLogout = async () => {
+    const data = await signOut();
+    if (data.success) {
+      toast.info("Anda telah keluar dari sistem.");
+      navigate("/login");
+    } else {
+      toast.error("Gagal keluar. Silakan coba lagi.");
+    }
   };
 
   return (
@@ -39,8 +43,12 @@ export default function Sidebar() {
             TC
           </div>
           <div>
-            <h1 className="text-sm font-bold tracking-tight text-white m-0">IT Ops Center</h1>
-            <p className="text-[11px] text-slate-400 font-medium m-0">TaskCore Management</p>
+            <h1 className="text-sm font-bold tracking-tight text-white m-0">
+              IT Ops Center
+            </h1>
+            <p className="text-[11px] text-slate-400 font-medium m-0">
+              TaskCore Management
+            </p>
           </div>
         </div>
       </div>
@@ -59,8 +67,8 @@ export default function Sidebar() {
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors relative ${
                   isActive
-                    ? 'bg-[#1E293B] text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    ? "bg-[#1E293B] text-white"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800/60"
                 }`
               }
             >
@@ -71,7 +79,7 @@ export default function Sidebar() {
                   )}
                   <Icon
                     className={`w-4 h-4 transition-colors ${
-                      isActive ? 'text-[#0EA5E9]' : 'text-slate-400'
+                      isActive ? "text-[#0EA5E9]" : "text-slate-400"
                     }`}
                   />
                   <span>{item.name}</span>
@@ -86,16 +94,19 @@ export default function Sidebar() {
       <div className="p-4 border-t border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-3 min-w-0">
           <img
-            src={user?.avatar || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=120'}
-            alt={user?.name || 'User'}
+            src={
+              user?.avatar ||
+              "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=120"
+            }
+            alt={user?.name || "User"}
             className="w-9 h-9 rounded-full object-cover ring-1 ring-slate-700 shrink-0"
           />
           <div className="min-w-0">
             <p className="text-xs font-semibold text-white truncate m-0">
-              {user?.name || 'Sarah Jenkins'}
+              {user?.name || "Sarah Jenkins"}
             </p>
             <p className="text-[11px] text-slate-400 truncate m-0">
-              {user?.roleTitle || 'Service Lead'}
+              {user?.roleTitle || "Service Lead"}
             </p>
           </div>
         </div>
