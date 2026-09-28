@@ -24,7 +24,10 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       await supabase.auth.signOut();
 
-      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+      if (
+        typeof window !== "undefined" &&
+        window.location.pathname !== "/login"
+      ) {
         window.location.assign("/login");
       }
     }
@@ -33,4 +36,4 @@ api.interceptors.response.use(
   },
 );
 
-export default api;
+export { api };

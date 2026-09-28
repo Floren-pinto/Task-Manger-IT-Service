@@ -1,209 +1,357 @@
-import React from "react";
+import { useMemo, useState } from "react";
+import { MapPin } from "lucide-react";
+import { Loading } from "../components/Loading";
+import { useTask } from "../contexts/TaskContext";
 import { useToast } from "../contexts/ToastContext";
-import { Plus, Search, MapPin } from "lucide-react";
+import { formatTaskId } from "../utils/formatTaskId";
+
+const statusStyles = {
+  PENDING: "bg-blue-50 text-blue-700",
+  IN_PROGRESS: "bg-amber-50 text-amber-700",
+  ON_HOLD: "bg-slate-100 text-slate-700",
+  COMPLETED: "bg-emerald-50 text-emerald-700",
+  CANCELLED: "bg-rose-50 text-rose-700",
+};
+
+const statusLabels = {
+  PENDING: "Menunggu",
+  IN_PROGRESS: "Dikerjakan",
+  ON_HOLD: "Ditunda",
+  COMPLETED: "Selesai",
+  CANCELLED: "Dibatalkan",
+};
+
+const priorityStyles = {
+  LOW: "bg-slate-100 text-slate-700",
+  MEDIUM: "bg-sky-50 text-sky-700",
+  HIGH: "bg-orange-50 text-orange-700",
+  URGENT: "bg-rose-50 text-rose-700",
+};
+
+function formatDate(dateValue) {
+  if (!dateValue) return "Tidak ada tenggat";
+
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return "Tanggal tidak valid";
+
+  return new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "medium",
+  }).format(date);
+}
+
+function isToday(dateValue) {
+  if (!dateValue) return false;
+
+  const date = new Date(dateValue);
+  const today = new Date();
+  return (
+    !Number.isNaN(date.getTime()) &&
+    date.getFullYear() === today.getFullYear() &&
+    date.getMonth() === today.getMonth() &&
+    date.getDate() === today.getDate()
+  );
+}
+
+function assigneeNames(assignments) {
+  if (!Array.isArray(assignments) || assignments.length === 0) {
+    return "Belum ditugaskan";
+  }
+
+  const names = assignments
+    .map((assignment) => assignment.user?.name)
+    .filter(Boolean);
+
+  return names.length > 0 ? names.join(", ") : "Nama teknisi tidak tersedia";
+}
 
 export default function DashboardPage() {
   const toast = useToast();
+  const { tasks, loading, error, onRefreshTasks: fetchTasks } = useTask();
+  const [activeFilter, setActiveFilter] = useState("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const handleTestToast = () => {
-    toast.success("Tiket baru TC-9024 berhasil dibuat!");
-  };
+  const activeTasks = tasks.filter(
+    (task) => task.status !== "COMPLETED" && task.status !== "CANCELLED",
+  ).length;
+  const completedToday = tasks.filter(
+    (task) => task.status === "COMPLETED" && isToday(task.updated_at),
+  ).length;
+  const filteredTasks = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
+
+    return tasks.filter((task) => {
+      const divisionName = task.division?.name?.toLocaleLowerCase() || "";
+      const matchesFilter =
+        activeFilter === "ALL" ||
+        (activeFilter === "NETWORK" && divisionName.includes("network")) ||
+        (activeFilter === "PC_REPAIR" &&
+          (divisionName.includes("pc") || divisionName.includes("repair"))) ||
+        (activeFilter === "URGENT" && task.priority === "URGENT");
+      const matchesSearch =
+        !normalizedQuery ||
+        [
+          task.id,
+          task.title,
+          task.client?.name,
+          task.division?.name,
+          task.status,
+          task.priority,
+        ]
+          .filter(Boolean)
+          .some((value) =>
+            String(value).toLocaleLowerCase().includes(normalizedQuery),
+          );
+
+      return matchesFilter && matchesSearch;
+    });
+  }, [activeFilter, searchQuery, tasks]);
+
+  const filters = [
+    { id: "ALL", label: "All Tickets" },
+    { id: "NETWORK", label: "Network Issue" },
+    { id: "PC_REPAIR", label: "PC Repair" },
+    { id: "URGENT", label: "Urgent" },
+  ];
+
+  if (loading) return <Loading />;
 
   return (
     <div className="space-y-6">
-      {/* Header: Manager Workspace / TechPortal */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 m-0">
-            Dashboard
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 m-0 mt-1">
-            Overview operasional tiket dan penugasan teknisi
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleTestToast}
-            className="w-full sm:w-auto px-4 py-2 bg-[#0EA5E9] hover:bg-[#0284C7] text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 shadow-sm transition"
-          >
-            <Plus className="w-4 h-4" />
-            New Ticket
-          </button>
-        </div>
+      <div>
+        <h1 className="m-0 text-xl font-bold text-slate-900 sm:text-2xl">
+          Dashboard
+        </h1>
+        <p className="m-0 mt-1 text-xs text-slate-500 sm:text-sm">
+          Overview operasional tiket dan penugasan teknisi
+        </p>
       </div>
 
-      {/* Metric Cards: 3 Kolom di Desktop, 1 Kolom di Mobile */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
-        {/* Active Tasks */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
               Active Tasks
             </span>
-            <span className="w-2.5 h-2.5 rounded-full bg-[#0EA5E9]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[#0EA5E9]" />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-slate-900">42 Active</span>
+            <span className="text-2xl font-bold text-slate-900">
+              {activeTasks}
+            </span>
           </div>
-          <p className="text-xs text-emerald-600 font-medium mt-1">
-            +8% this week
-          </p>
         </div>
 
-        {/* Completed Today */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
               Completed Today
             </span>
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-slate-900">
-              18 Resolved
+              {completedToday}
             </span>
           </div>
-          <p className="text-xs text-slate-500 font-normal mt-1">
-            Avg resolve time: 1.4 hours
-          </p>
-        </div>
-
-        {/* Staff Available */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm sm:col-span-2 md:col-span-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Staff Available
-            </span>
-            <span className="w-2.5 h-2.5 rounded-full bg-[#F97316]" />
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-slate-900">6 On Duty</span>
-          </div>
-          <p className="text-xs text-slate-500 font-normal mt-1">
-            2 dispatch field engineers
-          </p>
         </div>
       </div>
 
-      {/* Filter & Search Bar: Horizontal Scrollable Pills di Mobile */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 md:pb-0">
-          <button className="bg-[#0EA5E9] text-white rounded-lg md:rounded-lg px-3 py-1.5 text-xs font-semibold whitespace-nowrap">
-            All Tickets
-          </button>
-          <button className="bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap transition">
-            Network Issue
-          </button>
-          <button className="bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap transition">
-            PC Repair
-          </button>
-          <button className="bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap transition">
-            Urgent
+      {error && (
+        <div
+          role="alert"
+          className="flex flex-col justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 sm:flex-row sm:items-center"
+        >
+          <p>{error}</p>
+          <button
+            type="button"
+            onClick={fetchTasks}
+            className="shrink-0 font-semibold underline underline-offset-2"
+          >
+            Coba lagi
           </button>
         </div>
+      )}
 
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            placeholder="Search TC-9023..."
-            className="border border-slate-300 rounded-lg pl-9 pr-4 py-1.5 text-xs sm:text-sm w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-[#0EA5E9]"
-          />
+      <section
+        aria-label="Filter and add tickets"
+        className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm min-[1181px]:flex-row min-[1181px]:items-center min-[1181px]:justify-between"
+      >
+        <div
+          className="flex items-center gap-2 overflow-x-auto pb-1 min-[1181px]:pb-0"
+          aria-label="Filter tickets"
+        >
+          {filters.map((filter) => {
+            const selected = activeFilter === filter.id;
+            return (
+              <button
+                key={filter.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => setActiveFilter(filter.id)}
+                className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                  selected
+                    ? "bg-[#0EA5E9] text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {filter.label}
+              </button>
+            );
+          })}
         </div>
-      </div>
 
-      {/* Content Responsive: Table di Desktop / Cards di Mobile */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        {/* Desktop View: Table Grid */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row min-[1181px]:shrink-0">
+          <label className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 focus-within:ring-2 focus-within:ring-[#0EA5E9] min-[1181px]:w-64">
+            <span className="sr-only">Cari tiket</span>
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 20 20"
+              fill="none"
+              className="h-4 w-4 shrink-0 text-slate-400"
+            >
+              <circle cx="8.75" cy="8.75" r="5.75" stroke="currentColor" strokeWidth="1.5" />
+              <path d="m13 13 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Cari tiket atau klien..."
+              className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none placeholder:text-slate-400 focus:ring-0"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() =>
+              toast.info("Form tambah tiket belum tersedia.")
+            }
+            className="shrink-0 rounded-lg bg-[#0EA5E9] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#0284C7]"
+          >
+            + Add Ticket
+          </button>
+        </div>
+      </section>
+
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="hidden overflow-x-auto xl:block">
+          <table className="w-full border-collapse text-left">
             <thead>
-              <tr className="bg-slate-50 text-slate-400 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
-                <th className="py-3 px-4">Ticket ID</th>
-                <th className="py-3 px-4">Task Title & Client</th>
-                <th className="py-3 px-4">Assigned Tech</th>
-                <th className="py-3 px-4">Division</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4">Priority</th>
-                <th className="py-3 px-4">Due Within</th>
+              <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                <th className="px-4 py-3">ID</th>
+                <th className="px-4 py-3">Tugas & Klien</th>
+                <th className="px-4 py-3">Teknisi</th>
+                <th className="px-4 py-3">Divisi</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Prioritas</th>
+                <th className="px-4 py-3">Tenggat</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
-              <tr className="hover:bg-slate-50 transition">
-                <td className="py-3 px-4 font-semibold text-slate-900">
-                  TC-9023
-                </td>
-                <td className="py-3 px-4">
-                  <div className="font-semibold text-slate-800">
-                    Koneksi Fiber Optic Switch Drop
-                  </div>
-                  <div className="text-slate-400 text-[11px]">
-                    PT. Indah Jaya • Gedung Rektorat Lt. 3
-                  </div>
-                </td>
-                <td className="py-3 px-4 text-slate-600">Alex Rivers</td>
-                <td className="py-3 px-4">
-                  <span className="bg-sky-50 text-sky-600 px-2 py-0.5 rounded text-[11px] font-medium">
-                    Network
-                  </span>
-                </td>
-                <td className="py-3 px-4">
-                  <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[11px] font-medium">
-                    Baru
-                  </span>
-                </td>
-                <td className="py-3 px-4">
-                  <span className="text-orange-600 font-bold flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
-                    Urgent
-                  </span>
-                </td>
-                <td className="py-3 px-4 text-slate-500">2 Jam</td>
-              </tr>
+              {filteredTasks.map((task) => (
+                <tr key={task.id} className="transition hover:bg-slate-50">
+                  <td className="break-all px-4 py-3 font-semibold text-slate-900">
+                    {formatTaskId(task.id)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="font-semibold text-slate-800">
+                      {task.title}
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      {task.client?.name || "Klien tidak diketahui"}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {assigneeNames(task.assignments)}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {task.division?.name || "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusStyles[task.status] || "bg-slate-100 text-slate-700"}`}
+                    >
+                      {statusLabels[task.status] || task.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`rounded px-2 py-0.5 text-[11px] font-medium ${priorityStyles[task.priority] || "bg-slate-100 text-slate-700"}`}
+                    >
+                      {task.priority}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-slate-500">
+                    {formatDate(task.due_date)}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
 
-        {/* Mobile View: Vertical Task Cards */}
-        <div className="block md:hidden p-4 space-y-4">
-          <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-400">TC-9023</span>
-              <div className="flex items-center gap-1.5">
-                <span className="bg-orange-50 text-orange-600 border border-orange-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                  HIGH
+        <div className="grid gap-3 p-4 xl:hidden">
+          {filteredTasks.map((task) => (
+            <article
+              key={task.id}
+              className="rounded-xl border border-slate-200 p-4"
+            >
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <span className="break-all text-xs font-bold text-slate-500">
+                  {formatTaskId(task.id)}
                 </span>
-                <span className="bg-blue-50 text-blue-600 border border-blue-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                  Baru
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${priorityStyles[task.priority] || "bg-slate-100 text-slate-700"}`}
+                  >
+                    {task.priority}
+                  </span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${statusStyles[task.status] || "bg-slate-100 text-slate-700"}`}
+                  >
+                    {statusLabels[task.status] || task.status}
+                  </span>
+                </div>
+              </div>
+              <h3 className="mb-1 text-sm font-bold text-slate-900">
+                {task.title}
+              </h3>
+              <div className="mb-3 flex items-center gap-1 text-xs text-slate-500">
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <span className="truncate">
+                  {task.client?.name || "Klien tidak diketahui"}
                 </span>
               </div>
-            </div>
-
-            <h3 className="text-sm font-bold text-slate-900 mb-1">
-              Koneksi Fiber Optic Switch Drop
-            </h3>
-            <div className="text-xs text-slate-500 mb-2 flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span className="truncate">
-                PT. Indah Jaya • Gedung Rektorat Lt. 3
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between mb-3">
-              <span className="bg-slate-100 text-slate-600 text-[10px] font-medium px-2.5 py-1 rounded-md">
-                Jaringan
-              </span>
-              <span className="text-xs text-slate-500">Alex Rivers</span>
-            </div>
-
-            <button
-              onClick={() => toast.info("Detail tiket TC-9023")}
-              className="w-full bg-[#0EA5E9] active:bg-[#0284C7] text-white py-2 rounded-lg font-semibold text-xs transition"
-            >
-              Update Status
-            </button>
-          </div>
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                <div>
+                  <dt className="text-slate-400">Teknisi</dt>
+                  <dd className="mt-0.5 text-slate-700">
+                    {assigneeNames(task.assignments)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-400">Divisi</dt>
+                  <dd className="mt-0.5 text-slate-700">
+                    {task.division?.name || "—"}
+                  </dd>
+                </div>
+                <div className="col-span-2">
+                  <dt className="text-slate-400">Tenggat</dt>
+                  <dd className="mt-0.5 text-slate-700">
+                    {formatDate(task.due_date)}
+                  </dd>
+                </div>
+              </dl>
+            </article>
+          ))}
         </div>
+
+        {filteredTasks.length === 0 && !error && (
+          <p className="px-4 py-10 text-center text-sm text-slate-500">
+            {tasks.length === 0
+              ? "Belum ada tugas untuk ditampilkan."
+              : "Tidak ada tiket yang cocok dengan pencarian atau filter ini."}
+          </p>
+        )}
       </div>
     </div>
   );
