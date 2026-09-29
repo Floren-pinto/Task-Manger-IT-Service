@@ -1,6 +1,7 @@
+import crypto from "node:crypto";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
-import { ok } from "../utils/ApiResponse.js";
+import { created, ok } from "../utils/ApiResponse.js";
 
 // GET TASK
 export const listTasks = asyncHandler(async (req, res) => {
@@ -39,8 +40,57 @@ export const listTasks = asyncHandler(async (req, res) => {
   });
 });
 
-import crypto from "node:crypto";
-import { created } from "../utils/ApiResponse.js";
+// TASK DETAIL
+export const getTaskDetail = asyncHandler(async (req, res) => {
+  const { taskId } = req.params;
+
+  if (!taskId) {
+    throw new ApiError(400, "Task ID is required");
+  }
+
+  const { data, error } = await req.supabase
+    .from("tasks")
+    .select(
+      `id, title, description, priority, status, due_date, created_at, updated_at, deleted_at,
+        createdBy:users!tasks_created_by_id_fkey (id, name, email),
+        division:divisions!tasks_division_id_fkey (id, name),
+        client:clients!tasks_client_id_fkey (id, name, contact, email, address, service_type),
+        asset:assets!tasks_asset_id_fkey (id, name, serial_number, type),
+        assignments:task_assignments (
+          id,
+          assigned_at,
+          user:users!task_assignments_user_id_fkey (id, name, email)
+        ),
+        attachments:task_attachments (
+          id, file_url, file_name, file_type, uploaded_at,
+          uploadedBy:users!task_attachments_uploaded_by_id_fkey (id, name, email)
+        ),
+        histories:task_status_history (
+          id, old_status, new_status, changed_at,
+          user:users!task_status_history_user_id_fkey (id, name, email)
+        ),
+        reports:service_reports (
+          id, summary, action_taken, notes, created_at, updated_at, snapshot_data,
+          createdBy:users!service_reports_created_by_id_fkey (id, name, email)
+        )`,
+    )
+    .eq("id", taskId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Failed to fetch task detail:", {
+      taskId,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    throw new ApiError(500, "Failed to fetch task detail");
+  }
+  if (!data) throw new ApiError(404, "Task not found or accessible");
+
+  return ok(res, data);
+});
 
 // CREATE TASK
 export const createTask = asyncHandler(async (req, res) => {
