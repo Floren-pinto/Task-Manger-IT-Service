@@ -10,3 +10,8 @@ export const getTasks = async () => {
 
   return result;
 };
+
+export const getTaskById = async (taskId) => {
+  const response = await api.get(`/tasks/${taskId}`);
+  return response.data?.data;
+};

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { MapPin } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Loading } from "../components/Loading";
 import { useTask } from "../contexts/TaskContext";
 import { useToast } from "../contexts/ToastContext";
@@ -65,6 +66,8 @@ function assigneeNames(assignments) {
 }
 
 export default function DashboardPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const toast = useToast();
   const { tasks, loading, error, onRefreshTasks: fetchTasks } = useTask();
   const [activeFilter, setActiveFilter] = useState("ALL");
@@ -248,17 +251,37 @@ export default function DashboardPage() {
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
               {filteredTasks.map((task) => (
-                <tr key={task.id} className="transition hover:bg-slate-50">
+                <tr
+                  key={task.id}
+                  className="cursor-pointer transition hover:bg-slate-50"
+                  onClick={() =>
+                    navigate(`/tasks/${encodeURIComponent(task.id)}`, {
+                      state: { backgroundLocation: location },
+                    })
+                  }
+                >
                   <td className="break-all px-4 py-3 font-semibold text-slate-900">
-                    {formatTaskId(task.id)}
+                    <Link
+                      to={`/tasks/${encodeURIComponent(task.id)}`}
+                      state={{ backgroundLocation: location }}
+                      onClick={(event) => event.stopPropagation()}
+                      className="rounded-sm hover:text-[#0284C7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]"
+                    >
+                      {formatTaskId(task.id)}
+                    </Link>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="font-semibold text-slate-800">
+                    <Link
+                      to={`/tasks/${encodeURIComponent(task.id)}`}
+                      state={{ backgroundLocation: location }}
+                      onClick={(event) => event.stopPropagation()}
+                      className="block rounded-sm font-semibold text-slate-800 hover:text-[#0284C7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]"
+                    >
                       {task.title}
-                    </div>
-                    <div className="text-[11px] text-slate-400">
-                      {task.client?.name || "Klien tidak diketahui"}
-                    </div>
+                      <span className="block text-[11px] font-normal text-slate-400">
+                        {task.client?.name || "Klien tidak diketahui"}
+                      </span>
+                    </Link>
                   </td>
                   <td className="px-4 py-3 text-slate-600">
                     {assigneeNames(task.assignments)}
@@ -291,9 +314,11 @@ export default function DashboardPage() {
 
         <div className="grid gap-3 p-4 xl:hidden">
           {filteredTasks.map((task) => (
-            <article
+            <Link
               key={task.id}
-              className="rounded-xl border border-slate-200 p-4"
+              to={`/tasks/${encodeURIComponent(task.id)}`}
+              state={{ backgroundLocation: location }}
+              className="block rounded-xl border border-slate-200 p-4 transition hover:border-sky-200 hover:bg-sky-50/30"
             >
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <span className="break-all text-xs font-bold text-slate-500">
@@ -341,7 +366,7 @@ export default function DashboardPage() {
                   </dd>
                 </div>
               </dl>
-            </article>
+            </Link>
           ))}
         </div>
 
