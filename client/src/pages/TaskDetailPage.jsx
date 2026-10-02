@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ArrowLeft,
   CalendarDays,
@@ -15,7 +16,25 @@ import {
 } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTaskDetail } from "../hooks/useTaskDetail";
+import { useTask } from "../contexts/TaskContext.jsx";
 import { Loading } from "../components/Loading";
+import { useAuth } from "../contexts/AuthContext";
+import { useToast } from "../contexts/ToastContext";
+import { updateStatusTask } from "../services/taskService.js";
+
+const statusUpdateRoles = new Set([
+  "SUPER_ADMIN",
+  "MANAGER_DIVISION",
+  "TECHNICIAN",
+]);
+
+const availableStatuses = [
+  "PENDING",
+  "IN_PROGRESS",
+  "ON_HOLD",
+  "COMPLETED",
+  "CANCELLED",
+];
 
 const workflowSteps = [
   { id: "NEW", label: "Baru" },
@@ -37,7 +56,7 @@ const statusLabels = {
   PENDING: "Menunggu",
   ASSIGNED: "Ditugaskan",
   IN_PROGRESS: "Dikerjakan",
-  ON_HOLD: "Menunggu",
+  ON_HOLD: "Tertahan",
   COMPLETED: "Selesai",
   CANCELLED: "Dibatalkan",
 };
@@ -100,9 +119,18 @@ export default function TaskDetailPage() {
   const params = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const { userProfile } = useAuth();
+  const [statusUpdate, setStatusUpdate] = useState(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [statusError, setStatusError] = useState("");
   const returnTo = location.state?.backgroundLocation || "/dashboard";
   const taskId = params.taskId || params.id;
   const { task, loading, error } = useTaskDetail(taskId);
+  const userRole =
+    typeof userProfile?.role === "string" ? userProfile.role.toUpperCase() : "";
+  const canUpdateStatus = statusUpdateRoles.has(userRole);
+  const { updateTaskLocally } = useTask();
+  const { success: showSuccessToast, error: showErrorToast } = useToast();
 
   const handleBackdropClick = (event) => {
     if (event.target === event.currentTarget) {
@@ -145,11 +173,17 @@ export default function TaskDetailPage() {
   }
 
   const status = task.status || "";
+  const displayedStatus =
+    statusUpdate?.taskId === taskId ? statusUpdate.status : status;
+  const selectedStatus =
+    statusUpdate?.taskId === taskId
+      ? statusUpdate.selectedStatus
+      : displayedStatus;
   const assignments = Array.isArray(task.assignments) ? task.assignments : [];
   const stepIndex =
-    status === "PENDING" && assignments.length > 0
+    displayedStatus === "PENDING" && assignments.length > 0
       ? 1
-      : (statusStep[status] ?? 0);
+      : (statusStep[displayedStatus] ?? 0);
   const attachments = Array.isArray(task.attachments) ? task.attachments : [];
   const histories = Array.isArray(task.histories) ? task.histories : [];
   const reports = Array.isArray(task.reports) ? task.reports : [];
@@ -179,6 +213,50 @@ export default function TaskDetailPage() {
     (file) => file.file_type?.startsWith("image/") && file.file_url,
   );
 
+  const handleStatusChange = (event) => {
+    setStatusUpdate({
+      taskId,
+      status: displayedStatus,
+      selectedStatus: event.target.value,
+    });
+    setStatusError("");
+  };
+
+  const handleStatusSubmit = async (event) => {
+    event.preventDefault();
+    if (
+      !canUpdateStatus ||
+      statusLoading ||
+      selectedStatus === displayedStatus
+    ) {
+      return;
+    }
+
+    setStatusLoading(true);
+    setStatusError("");
+    try {
+      const updatedTask = await updateStatusTask(taskId, selectedStatus);
+      const nextStatus = updatedTask?.status || selectedStatus;
+      setStatusUpdate({
+        taskId,
+        status: nextStatus,
+        selectedStatus: nextStatus,
+      });
+      updateTaskLocally(taskId, { status: nextStatus });
+
+      showSuccessToast("Status tugas berhasil diperbarui");
+    } catch (err) {
+      showErrorToast("Gagal memperbarui status tugas. Silakan coba lagi.");
+      setStatusError(
+        err.response?.data?.message ||
+          err.message ||
+          "Gagal memperbarui status tugas. Silakan coba lagi.",
+      );
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
   return (
     <div
       className="fixed inset-0 z-40 flex justify-end bg-slate-900/30 max-md:bg-slate-50"
@@ -198,9 +276,9 @@ export default function TaskDetailPage() {
                 {task.id || taskId || "Ticket ID tidak tersedia"}
               </span>
               <span
-                className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusStyles[status] || "border-slate-200 bg-slate-100 text-slate-700"}`}
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusStyles[displayedStatus] || "border-slate-200 bg-slate-100 text-slate-700"}`}
               >
-                {formatStatus(status)}
+                {formatStatus(displayedStatus)}
               </span>
             </div>
             <Link
@@ -240,7 +318,7 @@ export default function TaskDetailPage() {
           </DetailSection>
 
           <DetailSection icon={CheckCircle2} title="Status pekerjaan">
-            {status === "CANCELLED" ? (
+            {displayedStatus === "CANCELLED" ? (
               <p className="m-0 rounded-lg bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
                 Tugas ini telah dibatalkan.
               </p>
@@ -488,19 +566,55 @@ export default function TaskDetailPage() {
           </DetailSection>
         </div>
 
-        <div className="shrink-0 border-t border-slate-200 bg-white p-4 shadow-lg md:hidden">
-          <button
-            type="button"
-            disabled
-            title="Fitur perubahan status belum tersedia."
-            className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-[#0EA5E9] px-4 py-3.5 text-sm font-bold text-white shadow-sm"
-          >
-            <CalendarDays aria-hidden="true" className="h-4 w-4" />
-            Update Status &amp; Complete
-          </button>
-          <p className="mb-0 mt-2 text-center text-[11px] text-slate-400">
-            Fitur pembaruan status belum tersedia.
-          </p>
+        <div className="shrink-0 border-t border-slate-200 bg-white p-4 shadow-lg">
+          {canUpdateStatus ? (
+            <form
+              onSubmit={handleStatusSubmit}
+              className="flex flex-col gap-2 sm:flex-row"
+            >
+              <label className="sr-only" htmlFor="task-status">
+                Status tugas
+              </label>
+              <select
+                id="task-status"
+                value={selectedStatus}
+                onChange={handleStatusChange}
+                disabled={statusLoading}
+                className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-[#0EA5E9] disabled:opacity-60"
+              >
+                {!availableStatuses.includes(displayedStatus) && (
+                  <option value={displayedStatus}>
+                    {formatStatus(displayedStatus)}
+                  </option>
+                )}
+                {availableStatuses.map((option) => (
+                  <option key={option} value={option}>
+                    {formatStatus(option)}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                disabled={statusLoading || selectedStatus === displayedStatus}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0EA5E9] px-4 py-3.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#0284C7] active:bg-[#0284C7] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              >
+                <CalendarDays aria-hidden="true" className="h-4 w-4" />
+                {statusLoading ? "Memperbarui..." : "Update Status"}
+              </button>
+            </form>
+          ) : (
+            <p className="m-0 text-center text-xs text-slate-500">
+              Role Anda tidak memiliki izin untuk mengubah status tugas.
+            </p>
+          )}
+          {statusError && (
+            <p
+              role="alert"
+              className="mb-0 mt-2 text-xs font-medium text-rose-700"
+            >
+              {statusError}
+            </p>
+          )}
         </div>
       </section>
     </div>

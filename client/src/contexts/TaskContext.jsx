@@ -48,6 +48,14 @@ export const TaskProvider = ({ children }) => {
     }
   }, [authLoading, isAuthenticated]);
 
+  const updateTaskLocally = useCallback((taskId, updatedFields) => {
+    setTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        task.id === taskId ? { ...task, ...updatedFields } : task
+      )
+    );
+  }, []);
+
   useEffect(() => {
     if (authLoading) return;
 
@@ -76,6 +84,7 @@ export const TaskProvider = ({ children }) => {
     loading,
     error,
     onRefreshTasks: fetchTasks,
+    updateTaskLocally,
   };
   return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>;
 };
