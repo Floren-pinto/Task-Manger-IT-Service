@@ -10,7 +10,7 @@ import DashboardLayout from "../layouts/DashboardLayout";
 import LoginPage from "../pages/LoginPage";
 import DashboardPage from "../pages/DashboardPage";
 import GenericPage from "../pages/GenericPage";
-import TaskDetailPage from "../pages/TaskDetailPage";
+import { TaskDetailPage } from "../pages/TaskDetailPage";
 
 export default function AppRoutes() {
   const location = useLocation();
