@@ -67,6 +67,10 @@ export function TaskDetailPage() {
     }
   };
 
+  const histories = Array.isArray(task?.histories) ? task.histories : [];
+  const reports = Array.isArray(task?.reports) ? task.reports : [];
+  const activity = useTaskActivity(histories, reports);
+
   if (loading) {
     return <Loading />;
   }
@@ -101,18 +105,15 @@ export function TaskDetailPage() {
     );
   }
 
-  const status = task.status || "";
+  const status = task?.status || "";
   const displayedStatus =
     statusUpdate?.taskId === taskId ? statusUpdate.status : status;
   const selectedStatus =
     statusUpdate?.taskId === taskId
       ? statusUpdate.selectedStatus
       : displayedStatus;
-  const assignments = Array.isArray(task.assignments) ? task.assignments : [];
-  const attachments = Array.isArray(task.attachments) ? task.attachments : [];
-  const histories = Array.isArray(task.histories) ? task.histories : [];
-  const reports = Array.isArray(task.reports) ? task.reports : [];
-  const activity = useTaskActivity(histories, reports);
+  const assignments = Array.isArray(task?.assignments) ? task.assignments : [];
+  const attachments = Array.isArray(task?.attachments) ? task.attachments : [];
 
   const handleStatusChange = (event) => {
     setStatusUpdate({
