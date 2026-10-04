@@ -15,3 +15,8 @@ export const getTaskById = async (taskId) => {
   const response = await api.get(`/tasks/${taskId}`);
   return response.data?.data;
 };
+
+export const updateStatusTask = async (taskId, newStatus) => {
+  const response = await api.patch(`/tasks/${taskId}/status`, { newStatus });
+  return response.data?.data;
+};
