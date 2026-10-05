@@ -20,12 +20,17 @@ export const listAssets = asyncHandler(async (req, res) => {
     .order("created_at", { ascending: false })
     .range(from, to);
 
-  if (search) query.like("name", `%${search}%`);
+  if (search) query.ilike("name", `%${search}%`);
 
   const { data, count, error } = await query;
 
+  if (search && data.length === 0) {
+    throw new ApiError(
+      404,
+      "No assets found matching with the search criteria",
+    );
+  }
   if (error) {
-    // console.error(error.code, error);
     throw new ApiError(500, "failed to fetch assets");
   }
 
