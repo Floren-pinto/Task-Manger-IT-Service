@@ -17,6 +17,6 @@ router.use("/notifications", requireAuth, notificationRoutes);
 
 router.use("/clients", requireAuth, attachProfile, clientRoutes);
 
-router.use("/assets", requireAuth, assetRootes);
+router.use("/assets", requireAuth, assetRoutes);
 
 export default router;

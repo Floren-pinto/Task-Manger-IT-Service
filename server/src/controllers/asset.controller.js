@@ -14,7 +14,7 @@ export const listAssets = asyncHandler(async (req, res) => {
   const query = req.supabase
     .from("assets")
     .select(
-      `id, name, serial_number, type, client!assets_client_id_fkey(id, name), created_at, updated_at`,
+      `id, name, serial_number, type, client:clients!assets_client_id_fkey(id, name), created_at, updated_at`,
       { count: "exact" },
     )
     .order("created_at", { ascending: false })
@@ -24,7 +24,10 @@ export const listAssets = asyncHandler(async (req, res) => {
 
   const { data, count, error } = await query;
 
-  if (error) throw new ApiError(500, "failed to fetch assets");
+  if (error) {
+    // console.error(error.code, error);
+    throw new ApiError(500, "failed to fetch assets");
+  }
 
   return ok(res, {
     assets: data,
@@ -46,7 +49,7 @@ export const getAssetDetail = asyncHandler(async (req, res) => {
   const { data, error } = await req.supabase
     .from("assets")
     .select(
-      `id, name, serial_number, type, client!assets_client_id_fkey(id, name), created_at, updated_at, tasks(id, title, description, due_date, created_at, updated_at)`,
+      `id, name, serial_number, type, client: clients!assets_client_id_fkey(id, name), created_at, updated_at, tasks(id, title, description, due_date, created_at, updated_at)`,
     )
     .eq("id", assetId)
     .single();
