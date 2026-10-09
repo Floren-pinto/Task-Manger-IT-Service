@@ -78,13 +78,6 @@ export const getTaskDetail = asyncHandler(async (req, res) => {
     .maybeSingle();
 
   if (error) {
-    console.error("Failed to fetch task detail:", {
-      taskId,
-      code: error.code,
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-    });
     throw new ApiError(500, "Failed to fetch task detail");
   }
   if (!data) throw new ApiError(404, "Task not found or accessible");
@@ -250,4 +243,116 @@ export const updateTaskStatus = asyncHandler(async (req, res) => {
     throw new ApiError(500, "Status updated but failed to fetch latest data");
 
   return ok(res, data, "Task status updated");
+});
+
+export const createTaskAttachment = asyncHandler(async (req, res) => {
+  const { filePath, fileName, fileType } = req.body;
+  const { taskId } = req.params;
+  const { id: userId } = req.profile;
+
+  if (!fileName || !fileType || !filePath)
+    throw new ApiError(400, "filePath, fileName and fileType are required");
+
+  const fileFolder = filePath.split("/")[0];
+  const removeFile = async () => {
+    try {
+      await req.supabase.storage.from("task_attachments").remove([filePath]);
+    } catch (err) {
+      console.error(`Failed clean orphan file [${filePath}]`, err.message);
+    }
+  };
+
+  if (fileFolder !== String(taskId)) {
+    await removeFile();
+    throw new ApiError(400, "filePath does not match");
+  }
+
+  const { data, error } = await req.supabase
+    .from("task_attachments")
+    .insert({
+      id: crypto.randomUUID(),
+      task_id: taskId,
+      file_url: filePath,
+      file_name: fileName,
+      file_type: fileType,
+      uploaded_by_id: userId,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    await removeFile();
+    if (error.code === "23503") throw new ApiError(400, "Invalid taskId");
+    if (error.code === "42501")
+      throw new ApiError(403, "you are not allowed to create a new client");
+    throw new ApiError(500, "Failed to create task attachment");
+  }
+
+  return created(res, data, "Task attachment created");
+});
+
+export const listTaskAttachments = asyncHandler(async (req, res) => {
+  const { taskId } = req.params;
+
+  if (!taskId) {
+    throw new ApiError(400, "Task ID is required");
+  }
+
+  const { data, error } = await req.supabase
+    .from("task_attachments")
+    .select(
+      `id, file_url, file_name, file_type, uploaded_at,
+       uploadedBy:users!task_attachments_uploaded_by_id_fkey (id, name, email)`,
+    )
+    .eq("task_id", taskId)
+    .order("uploaded_at", { ascending: false });
+
+  if (error) throw new ApiError(500, "Failed to fetch task attachments");
+
+  return ok(res, data);
+});
+
+export const deleteTaskAttachment = asyncHandler(async (req, res) => {
+  const { taskId, attachmentId } = req.params;
+
+  if (!taskId || !attachmentId) {
+    throw new ApiError(400, "Task ID and attachment ID are required");
+  }
+
+  const { data: attachment, error: fetchError } = await req.supabase
+    .from("task_attachments")
+    .select("id, task_id, file_url")
+    .eq("id", attachmentId)
+    .eq("task_id", taskId)
+    .maybeSingle();
+
+  if (fetchError) throw new ApiError(500, "Failed to fetch task attachment");
+  if (!attachment) throw new ApiError(404, "Task attachment not found");
+
+  const { data, error } = await req.supabase
+    .from("task_attachments")
+    .delete()
+    .eq("id", attachmentId)
+    .eq("task_id", taskId)
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116")
+      throw new ApiError(404, "Task attachment not found");
+    throw new ApiError(500, "Failed to delete task attachment");
+  }
+
+  try {
+    await req.supabase.storage
+      .from("task_attachments")
+      .remove([attachment.file_url]);
+  } catch (err) {
+    console.error(
+      `Failed to remove file [${attachment.file_url}]`,
+      err.message,
+    );
+  }
+
+  return ok(res, null, "Task attachment deleted");
 });

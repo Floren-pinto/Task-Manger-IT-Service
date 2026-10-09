@@ -28,7 +28,7 @@ Access to data and operations is controlled according to each user's role and th
 - [x] Project initialization
 - [x] Database setup
 - [x] Role-based database permissions
-- [ ] Authentication
+- [x] Authentication
 - [ ] Task Management
 - [ ] Task Assignment
 - [ ] Task Status History
@@ -67,7 +67,7 @@ The `task_attachments` table controls access according to the task scope. Techni
 
 The `service_reports` table is also designed as immutable data. `MANAGER_DIVISION` and `TECHNICIAN` can read reports within the task scope, while reports cannot be updated or deleted.
 
-The `clients` table provides role-based access where `MANAGER_DIVISION` has full access with soft delete, `STAFF` has full access except delete, and `TECHNICIAN` has read-only access.
+The `clients` table provides role-based access where `MANAGER_DIVISION` has full access with soft delete, `STAFF` has full access with soft delete, and `TECHNICIAN` has read-only access.
 
 ## Progress
 
@@ -82,10 +82,10 @@ The `clients` table provides role-based access where `MANAGER_DIVISION` has full
 - [x] Task Management (create, assign, status update — FR-20–FR-27)
 - [x] Notification
 - [x] Task Assignment
+- [x] Authentication (Supabase Auth di frontend — FR-01)
 
 ### In Progress
 
-- [ ] Authentication (Supabase Auth di frontend — FR-01)
 - [ ] Task Status History
 - [ ] Client Management
 
@@ -105,7 +105,6 @@ The `clients` table provides role-based access where `MANAGER_DIVISION` has full
 - [ ] Add task filtering
 - [ ] Add task sorting
 - [ ] Add pagination
-- [ ] Improve task validation
 
 ### Role & Permission
 
@@ -132,3 +131,4 @@ Installation instructions will be added once the initial application setup is co
 - Implement notifications
 - Add dashboard and task statistics
 - Improve application security and validation
+- scheduled cleanup for orphaned storage files

@@ -54,9 +54,7 @@ export function TaskDetailPage() {
   const taskId = params.taskId || params.id;
   const { task, loading, error } = useTaskDetail(taskId);
   const userRole =
-    typeof userProfile?.role === "string"
-      ? userProfile.role.toUpperCase()
-      : "";
+    typeof userProfile?.role === "string" ? userProfile.role.toUpperCase() : "";
   const canUpdateStatus = statusUpdateRoles.has(userRole);
   const { updateTaskLocally } = useTask();
   const { success: showSuccessToast, error: showErrorToast } = useToast();
