@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { getTaskById } from "../services/taskService.js";
 
 export const useTaskDetail = (taskId) => {
@@ -6,23 +6,22 @@ export const useTaskDetail = (taskId) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchTaskDetail = async () => {
-      setLoading(true);
-      try {
-        const response = await getTaskById(taskId);
-        setTask(response);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (taskId) {
-      fetchTaskDetail();
+  const fetchTaskDetail = useCallback(async () => {
+    if (!taskId) return;
+    setLoading(true);
+    try {
+      const response = await getTaskById(taskId);
+      setTask(response);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   }, [taskId]);
 
-  return { task, loading, error };
+  useEffect(() => {
+    fetchTaskDetail();
+  }, [fetchTaskDetail]);
+
+  return { task, loading, error, refetch: fetchTaskDetail };
 };

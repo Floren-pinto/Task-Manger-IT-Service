@@ -17,6 +17,7 @@ import { useToast } from "../contexts/ToastContext";
 import { updateStatusTask } from "../services/taskService";
 import { statusUpdateRoles } from "../constants/taskConstants";
 import { useTaskActivity } from "../hooks/useTaskActivity";
+import { useTaskMutations } from "../hooks/useTaskMutations";
 
 import { TaskHeader } from "../components/tasks/TaskHeader";
 import { TaskStatusWorkflow } from "../components/tasks/TaskStatusWorkflow";
@@ -52,7 +53,8 @@ export function TaskDetailPage() {
   const [statusError, setStatusError] = useState("");
   const returnTo = location.state?.backgroundLocation || "/dashboard";
   const taskId = params.taskId || params.id;
-  const { task, loading, error } = useTaskDetail(taskId);
+  const { task, loading, error, refetch } = useTaskDetail(taskId);
+  const { assignTask, createTaskAttachment, deleteTaskAttachment, loading: mutationsLoading } = useTaskMutations();
   const userRole =
     typeof userProfile?.role === "string" ? userProfile.role.toUpperCase() : "";
   const canUpdateStatus = statusUpdateRoles.has(userRole);
@@ -62,6 +64,39 @@ export function TaskDetailPage() {
   const handleBackdropClick = (event) => {
     if (event.target === event.currentTarget) {
       navigate(returnTo, { replace: true });
+    }
+  };
+
+  const handleAssignTask = async (userId) => {
+    try {
+      await assignTask(taskId, userId);
+      showSuccessToast("Teknisi berhasil ditugaskan.");
+      refetch();
+    } catch (err) {
+      showErrorToast(
+        err.response?.data?.message || err.message || "Gagal menetapkan tugas.",
+      );
+      throw err;
+    }
+  };
+
+  const handleUploadAttachment = async (file) => {
+    try {
+      await createTaskAttachment(taskId, file);
+      showSuccessToast("Lampiran tugas berhasil diunggah.");
+      refetch();
+    } catch (err) {
+      showErrorToast(err.message || "Gagal mengunggah lampiran.");
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId) => {
+    try {
+      await deleteTaskAttachment(taskId, attachmentId);
+      showSuccessToast("Lampiran tugas berhasil dihapus.");
+      refetch();
+    } catch (err) {
+      showErrorToast(err.message || "Gagal menghapus lampiran.");
     }
   };
 
@@ -195,7 +230,12 @@ export function TaskDetailPage() {
           </DetailSection>
 
           <DetailSection icon={UsersRound} title="Teknisi">
-            <TaskAssignmentsSection assignments={assignments} />
+            <TaskAssignmentsSection
+              assignments={assignments}
+              onAssign={handleAssignTask}
+              assigning={mutationsLoading}
+              canAssign={userRole !== "TECHNICIAN"}
+            />
           </DetailSection>
 
           <DetailSection icon={CheckCircle2} title="Checklist pekerjaan">
@@ -208,7 +248,12 @@ export function TaskDetailPage() {
           </DetailSection>
 
           <DetailSection icon={Paperclip} title="Bukti foto">
-            <TaskAttachmentsSection attachments={attachments} />
+            <TaskAttachmentsSection
+              attachments={attachments}
+              onUpload={handleUploadAttachment}
+              onDelete={handleDeleteAttachment}
+              uploading={mutationsLoading}
+            />
           </DetailSection>
 
           <DetailSection

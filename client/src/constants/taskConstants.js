@@ -52,3 +52,10 @@ export const priorityStyles = {
   HIGH: "bg-orange-50 text-orange-700",
   URGENT: "bg-orange-50 text-orange-600",
 };
+
+export const allowedAttachmentTypes = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+];
