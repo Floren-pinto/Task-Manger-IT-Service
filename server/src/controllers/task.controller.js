@@ -3,7 +3,6 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { created, ok } from "../utils/ApiResponse.js";
 
-// GET TASK
 export const listTasks = asyncHandler(async (req, res) => {
   const { status, priority, page = 1, limit = 20 } = req.query;
 
@@ -40,7 +39,6 @@ export const listTasks = asyncHandler(async (req, res) => {
   });
 });
 
-// TASK DETAIL
 export const getTaskDetail = asyncHandler(async (req, res) => {
   const { taskId } = req.params;
 
@@ -85,7 +83,6 @@ export const getTaskDetail = asyncHandler(async (req, res) => {
   return ok(res, data);
 });
 
-// CREATE TASK
 export const createTask = asyncHandler(async (req, res) => {
   const {
     title,
@@ -141,7 +138,6 @@ export const createTask = asyncHandler(async (req, res) => {
   return created(res, data, "Task created");
 });
 
-// ASSIGN TASK
 export const assignTask = asyncHandler(async (req, res) => {
   const { taskId } = req.params;
   const { userId } = req.body;
@@ -201,7 +197,30 @@ export const assignTask = asyncHandler(async (req, res) => {
   return created(res, data, "Task assigned");
 });
 
-// Update Task Status
+// export const availableTechnician = asyncHandler(async (req, res) => {
+//   const { taskId } = req.params;
+
+//   const { task, fetchError } = await req.supabase
+//     .from("tasks")
+//     .select("id, divisionId:division_id")
+//     .eq("id", taskId)
+//     .single();
+
+//   const relateDivisionId = task.divisionId;
+
+//   const { data, error } = await req.supabase
+//     .from("users")
+//     .select("id, name, email")
+//     .eq("role", "TECHNICIAN")
+//     .eq("division_id", relateDivisionId)
+//     .eq("status", "ACTIVE");
+
+//   if (error || fetchError)
+//     throw new ApiError(500, "failed to fetch technician");
+
+//   return ok(res, data);
+// });
+
 export const updateTaskStatus = asyncHandler(async (req, res) => {
   const { taskId } = req.params;
   const { newStatus } = req.body;
