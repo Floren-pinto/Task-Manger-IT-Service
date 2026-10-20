@@ -4,6 +4,7 @@ import {
   getTaskDetail,
   createTask,
   assignTask,
+  updateTask,
   updateTaskStatus,
   createTaskAttachment,
   deleteTaskAttachment,
@@ -16,6 +17,7 @@ router.get("/", listTasks);
 router.post("/", createTask);
 
 router.get("/:taskId", getTaskDetail);
+router.patch("/:taskId", updateTask);
 
 router.post("/:taskId/assignments", assignTask);
 router.patch("/:taskId/status", updateTaskStatus);

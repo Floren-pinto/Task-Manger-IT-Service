@@ -252,6 +252,94 @@ export const updateTaskStatus = asyncHandler(async (req, res) => {
   return ok(res, data, "Task status updated");
 });
 
+export const updateTask = asyncHandler(async (req, res) => {
+  const { taskId } = req.params;
+  const {
+    title,
+    description,
+    priority,
+    dueDate,
+    divisionId,
+    clientId,
+    assetId,
+    deleted,
+    status,
+  } = req.body;
+
+  if (!taskId) throw new ApiError(400, "Task ID is required");
+
+  if (status !== undefined) {
+    throw new ApiError(
+      400,
+      "Use PATCH /api/tasks/:taskId/status to update task status",
+    );
+  }
+
+  if (deleted !== undefined && typeof deleted !== "boolean") {
+    throw new ApiError(400, "deleted must be a boolean");
+  }
+
+  const updatePayload = {};
+
+  if (title !== undefined) updatePayload.title = title;
+  if (description !== undefined) updatePayload.description = description;
+  if (priority !== undefined) updatePayload.priority = priority;
+  if (dueDate !== undefined) updatePayload.due_date = dueDate ?? null;
+  if (divisionId !== undefined) updatePayload.division_id = divisionId;
+  if (clientId !== undefined) updatePayload.client_id = clientId;
+  if (assetId !== undefined) updatePayload.asset_id = assetId ?? null;
+
+  if (deleted !== undefined) {
+    updatePayload.deleted_at = deleted ? new Date() : null;
+  }
+
+  if (Object.keys(updatePayload).length === 0) {
+    throw new ApiError(400, "At least one field is required to update");
+  }
+
+  const { data, error } = await req.supabase
+    .from("tasks")
+    .update(updatePayload)
+    .eq("id", taskId)
+    .select()
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") {
+      throw new ApiError(404, "Task not found or accessible");
+    }
+    if (error.code === "P0001") {
+      throw new ApiError(403, error.message);
+    }
+    if (error.code === "42501") {
+      throw new ApiError(403, "You are not allowed to update this task");
+    }
+    if (error.code === "23503") {
+      throw new ApiError(
+        400,
+        "Invalid divisionId, clientId, or assetId",
+        error.message,
+      );
+    }
+    if (error.code === "23502") {
+      throw new ApiError(400, "Required field cannot be null", error.message);
+    }
+    if (error.code === "22007" || error.code === "22008") {
+      throw new ApiError(400, "Invalid dueDate value");
+    }
+    if (error.code === "22P02") {
+      throw new ApiError(400, "Invalid priority value");
+    }
+    throw new ApiError(500, "Failed to update task");
+  }
+
+  return ok(
+    res,
+    data,
+    deleted === true ? "Task deleted successfully" : "Task updated successfully",
+  );
+});
+
 export const createTaskAttachment = asyncHandler(async (req, res) => {
   const { filePath, fileName, fileType } = req.body;
   const { taskId } = req.params;
