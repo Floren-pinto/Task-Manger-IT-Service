@@ -2,6 +2,10 @@ import crypto from "node:crypto";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { created, ok } from "../utils/ApiResponse.js";
+import {
+  ATTACHMENT_BUCKET,
+  attachSignedAttachmentUrls,
+} from "../utils/attachmentUrl.js";
 
 export const listTasks = asyncHandler(async (req, res) => {
   const { status, priority, page = 1, limit = 20 } = req.query;
@@ -80,7 +84,15 @@ export const getTaskDetail = asyncHandler(async (req, res) => {
   }
   if (!data) throw new ApiError(404, "Task not found or accessible");
 
-  return ok(res, data);
+  const task = { ...data };
+  if (Array.isArray(task.attachments)) {
+    task.attachments = await attachSignedAttachmentUrls(
+      req.supabase,
+      task.attachments,
+    );
+  }
+
+  return ok(res, task);
 });
 
 export const createTask = asyncHandler(async (req, res) => {
@@ -197,30 +209,6 @@ export const assignTask = asyncHandler(async (req, res) => {
   return created(res, data, "Task assigned");
 });
 
-// export const availableTechnician = asyncHandler(async (req, res) => {
-//   const { taskId } = req.params;
-
-//   const { task, fetchError } = await req.supabase
-//     .from("tasks")
-//     .select("id, divisionId:division_id")
-//     .eq("id", taskId)
-//     .single();
-
-//   const relateDivisionId = task.divisionId;
-
-//   const { data, error } = await req.supabase
-//     .from("users")
-//     .select("id, name, email")
-//     .eq("role", "TECHNICIAN")
-//     .eq("division_id", relateDivisionId)
-//     .eq("status", "ACTIVE");
-
-//   if (error || fetchError)
-//     throw new ApiError(500, "failed to fetch technician");
-
-//   return ok(res, data);
-// });
-
 export const updateTaskStatus = asyncHandler(async (req, res) => {
   const { taskId } = req.params;
   const { newStatus } = req.body;
@@ -275,7 +263,7 @@ export const createTaskAttachment = asyncHandler(async (req, res) => {
   const fileFolder = filePath.split("/")[0];
   const removeFile = async () => {
     try {
-      await req.supabase.storage.from("task_attachments").remove([filePath]);
+      await req.supabase.storage.from(ATTACHMENT_BUCKET).remove([filePath]);
     } catch (err) {
       console.error(`Failed clean orphan file [${filePath}]`, err.message);
     }
@@ -307,7 +295,9 @@ export const createTaskAttachment = asyncHandler(async (req, res) => {
     throw new ApiError(500, "Failed to create task attachment");
   }
 
-  return created(res, data, "Task attachment created");
+  const [attachment] = await attachSignedAttachmentUrls(req.supabase, [data]);
+
+  return created(res, attachment, "Task attachment created");
 });
 
 export const listTaskAttachments = asyncHandler(async (req, res) => {
@@ -328,7 +318,12 @@ export const listTaskAttachments = asyncHandler(async (req, res) => {
 
   if (error) throw new ApiError(500, "Failed to fetch task attachments");
 
-  return ok(res, data);
+  const attachments = await attachSignedAttachmentUrls(
+    req.supabase,
+    data ?? [],
+  );
+
+  return ok(res, attachments);
 });
 
 export const deleteTaskAttachment = asyncHandler(async (req, res) => {
@@ -364,7 +359,7 @@ export const deleteTaskAttachment = asyncHandler(async (req, res) => {
 
   try {
     await req.supabase.storage
-      .from("task_attachments")
+      .from(ATTACHMENT_BUCKET)
       .remove([attachment.file_url]);
   } catch (err) {
     console.error(

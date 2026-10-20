@@ -1,6 +1,11 @@
 import React, { useRef } from "react";
 import { FileText, Download, Plus, Trash2 } from "lucide-react";
 
+const getAttachmentUrl = (file) => {
+  const url = file?.signed_url || file?.file_url || "";
+  return /^https?:\/\//i.test(url) ? url : "";
+};
+
 export function TaskAttachmentsSection({
   attachments = [],
   onUpload,
@@ -18,11 +23,11 @@ export function TaskAttachmentsSection({
   };
 
   const imageAttachments = attachments.filter(
-    (file) => file.file_type?.startsWith("image/") && file.file_url,
+    (file) => file.file_type?.startsWith("image/") && getAttachmentUrl(file),
   );
 
   const otherAttachments = attachments.filter(
-    (file) => !file.file_type?.startsWith("image/") || !file.file_url,
+    (file) => !file.file_type?.startsWith("image/") || !getAttachmentUrl(file),
   );
 
   return (
@@ -59,13 +64,13 @@ export function TaskAttachmentsSection({
               className="group relative aspect-[4/3] overflow-hidden rounded-lg bg-slate-100"
             >
               <a
-                href={file.file_url}
+                href={getAttachmentUrl(file)}
                 target="_blank"
                 rel="noreferrer"
                 className="block h-full w-full"
               >
                 <img
-                  src={file.file_url}
+                  src={getAttachmentUrl(file)}
                   alt={file.file_name || "Bukti foto tugas"}
                   className="h-full w-full object-cover transition group-hover:scale-105"
                 />
@@ -95,13 +100,16 @@ export function TaskAttachmentsSection({
               key={file.id || index}
               className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-100 p-3"
             >
-              <FileText aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-400" />
+              <FileText
+                aria-hidden="true"
+                className="h-4 w-4 shrink-0 text-slate-400"
+              />
               <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700">
                 {file.file_name || "Lampiran tanpa nama"}
               </span>
-              {file.file_url && (
+              {getAttachmentUrl(file) && (
                 <a
-                  href={file.file_url}
+                  href={getAttachmentUrl(file)}
                   target="_blank"
                   rel="noreferrer"
                   aria-label={`Unduh ${file.file_name || "lampiran"}`}

@@ -21,7 +21,7 @@ router.use("/notifications", requireAuth, notificationRoutes);
 
 router.use("/clients", requireAuth, attachProfile, clientRoutes);
 
-router.use("/assets", requireAuth, assetRoutes);
+router.use("/assets", requireAuth, attachProfile, assetRoutes);
 
 router.use("/divisions", requireAuth, attachProfile, divisionRoutes);
 

@@ -83,15 +83,15 @@ The `clients` table provides role-based access where `MANAGER_DIVISION` has full
 - [x] Notification
 - [x] Task Assignment
 - [x] Authentication (Supabase Auth di frontend — FR-01)
+- [x] Task Status History
+- [x] Task Attachments
 
 ### In Progress
 
-- [ ] Task Status History
 - [ ] Client Management
 
 ### Planned
 
-- [ ] Task Attachments
 - [ ] Service Reports
 - [ ] Dashboard & Reporting
 
