@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useDivisions } from "../hooks/useDivisions";
 import { useTasks } from "../hooks/useTasks";
+import { useTasksChanged } from "../hooks/useTasksChanged";
 import { useUsers } from "../hooks/useUsers";
 import { TaskCardList } from "../components/tasks/TaskCardList";
 import { TaskCreateDialog } from "../components/tasks/TaskCreateDialog";
@@ -13,6 +14,7 @@ import { TaskPagination } from "../components/tasks/TaskPagination";
 import { TaskTable } from "../components/tasks/TaskTable";
 import {
   availableStatuses,
+  pageSizeOptions,
   priorityOptions,
   taskCreateRoles,
 } from "../constants/taskConstants";
@@ -27,11 +29,14 @@ export default function TasksPage() {
   const { userProfile } = useAuth();
   const [createOpen, setCreateOpen] = useState(false);
 
-  const page = Math.max(Number(searchParams.get("page")) || 1, 1);
-  const limit = Math.min(
-    Math.max(Number(searchParams.get("limit")) || DEFAULT_LIMIT, 1),
-    100,
-  );
+  const rawPage = Number(searchParams.get("page"));
+  const page = Number.isFinite(rawPage)
+    ? Math.max(Math.floor(rawPage), 1)
+    : 1;
+  const rawLimit = Number(searchParams.get("limit"));
+  const limit = pageSizeOptions.includes(rawLimit)
+    ? rawLimit
+    : DEFAULT_LIMIT;
   const search = (searchParams.get("search") || "").trim();
   const statusParam = searchParams.get("status") || "";
   const priorityParam = searchParams.get("priority") || "";
@@ -112,6 +117,8 @@ export default function TasksPage() {
   const { tasks, pagination, loading, error, refetch } = useTasks(queryParams);
   const { divisions } = useDivisions();
   const { users: technicians } = useUsers({ role: "TECHNICIAN" });
+
+  useTasksChanged(refetch);
 
   const [searchInput, setSearchInput] = useState(search);
   const debouncedSearch = useDebouncedValue(searchInput, 350);

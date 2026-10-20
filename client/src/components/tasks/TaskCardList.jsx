@@ -50,6 +50,9 @@ export function TaskCardList({
               {task.client?.name || "Klien tidak tersedia"}
             </span>
           </p>
+          <p className="mt-1 text-[11px] text-slate-400">
+            {task.division?.name || "Divisi belum ditentukan"}
+          </p>
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <span

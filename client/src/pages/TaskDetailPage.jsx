@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTaskDetail } from "../hooks/useTaskDetail";
-import { useTask } from "../contexts/TaskContext";
 import { Loading } from "../components/Loading";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
@@ -21,6 +20,7 @@ import {
 } from "../constants/taskConstants";
 import { useTaskActivity } from "../hooks/useTaskActivity";
 import { useTaskMutations } from "../hooks/useTaskMutations";
+import { emitTasksChanged } from "../utils/taskEvents";
 
 import { TaskEditDialog } from "../components/tasks/TaskEditDialog";
 import { TaskHeader } from "../components/tasks/TaskHeader";
@@ -64,7 +64,6 @@ export function TaskDetailPage() {
     typeof userProfile?.role === "string" ? userProfile.role.toUpperCase() : "";
   const canUpdateStatus = statusUpdateRoles.has(userRole);
   const canEdit = taskEditRoles.has(userRole);
-  const { updateTaskLocally } = useTask();
   const { success: showSuccessToast, error: showErrorToast } = useToast();
 
   const handleBackdropClick = (event) => {
@@ -78,6 +77,7 @@ export function TaskDetailPage() {
       await assignTask(taskId, userId);
       showSuccessToast("Teknisi berhasil ditugaskan.");
       refetch();
+      emitTasksChanged();
     } catch (err) {
       showErrorToast(
         err.response?.data?.message || err.message || "Gagal menetapkan tugas.",
@@ -183,9 +183,9 @@ export function TaskDetailPage() {
         status: nextStatus,
         selectedStatus: nextStatus,
       });
-      updateTaskLocally(taskId, { status: nextStatus });
 
       showSuccessToast("Status tugas berhasil diperbarui");
+      emitTasksChanged();
     } catch (err) {
       showErrorToast("Gagal memperbarui status tugas. Silakan coba lagi.");
       setStatusError(
@@ -292,8 +292,14 @@ export function TaskDetailPage() {
         open={editOpen}
         task={task}
         onClose={() => setEditOpen(false)}
-        onSaved={() => refetch()}
-        onDeleted={() => navigate(returnTo, { replace: true })}
+        onSaved={() => {
+          emitTasksChanged();
+          refetch();
+        }}
+        onDeleted={() => {
+          emitTasksChanged();
+          navigate(returnTo, { replace: true });
+        }}
       />
     </div>
   );

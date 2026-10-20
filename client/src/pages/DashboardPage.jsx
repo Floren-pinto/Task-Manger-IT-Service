@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Activity,
   AlertCircle,
@@ -16,6 +16,7 @@ import { TaskTable } from "../components/tasks/TaskTable";
 import { useAuth } from "../contexts/AuthContext";
 import { useDashboardSummary } from "../hooks/useDashboardSummary";
 import { useTasks } from "../hooks/useTasks";
+import { useTasksChanged } from "../hooks/useTasksChanged";
 import {
   availableStatuses,
   statusLabels,
@@ -115,6 +116,13 @@ export default function DashboardPage() {
     error: tasksError,
     refetch: refetchTasks,
   } = useTasks(recentTaskParams);
+
+  const handleTasksChanged = useCallback(() => {
+    void refetchSummary();
+    void refetchTasks();
+  }, [refetchSummary, refetchTasks]);
+
+  useTasksChanged(handleTasksChanged);
 
   const userRole =
     typeof userProfile?.role === "string" ? userProfile.role.toUpperCase() : "";
