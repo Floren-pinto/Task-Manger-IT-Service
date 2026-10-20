@@ -1,7 +1,7 @@
 import { api } from "../api/api.js";
 
-export const getTasks = async () => {
-  const response = await api.get("/tasks");
+export const getTasks = async (params = {}) => {
+  const response = await api.get("/tasks", { params });
   const result = response.data?.data;
 
   if (!Array.isArray(result?.tasks))
@@ -11,6 +11,16 @@ export const getTasks = async () => {
 
 export const getTaskById = async (taskId) => {
   const response = await api.get(`/tasks/${taskId}`);
+  return response.data?.data;
+};
+
+export const createTask = async (payload) => {
+  const response = await api.post("/tasks", payload);
+  return response.data?.data;
+};
+
+export const updateTask = async (taskId, payload) => {
+  const response = await api.patch(`/tasks/${taskId}`, payload);
   return response.data?.data;
 };
 
