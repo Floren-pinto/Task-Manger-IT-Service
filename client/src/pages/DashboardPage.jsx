@@ -216,12 +216,6 @@ export default function DashboardPage() {
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
               <p className="m-0 font-medium">{errorMessage}</p>
-              {summaryError && (
-                <p className="m-0 mt-1 text-xs text-rose-600">
-                  Pastikan fungsi SQL get_dashboard_summary sudah diterapkan di
-                  Supabase.
-                </p>
-              )}
             </div>
           </div>
           <button
