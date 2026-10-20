@@ -9,25 +9,10 @@ import {
 import { getClientById } from "../../services/clientService";
 import { createTask } from "../../services/taskService";
 import { ClientPicker } from "./ClientPicker";
-
-const inputClassName =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-[#0EA5E9] focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-50";
-
-function FormField({ label, htmlFor, error, hint, children }) {
-  return (
-    <div className="space-y-1.5">
-      <label
-        htmlFor={htmlFor}
-        className="block text-xs font-semibold text-slate-600"
-      >
-        {label}
-      </label>
-      {children}
-      {hint && !error && <p className="m-0 text-xs text-slate-400">{hint}</p>}
-      {error && <p className="m-0 text-xs text-rose-600">{error}</p>}
-    </div>
-  );
-}
+import {
+  TaskFormField,
+  taskInputClassName,
+} from "./TaskFormControls";
 
 function TaskCreateDialogContent({ onClose, onCreated }) {
   const toast = useToast();
@@ -229,7 +214,11 @@ function TaskCreateDialogContent({ onClose, onCreated }) {
               </div>
             )}
 
-            <FormField label="Judul tiket" htmlFor="task-title" error={errors.title}>
+            <TaskFormField
+              label="Judul tiket"
+              htmlFor="task-title"
+              error={errors.title}
+            >
               <input
                 id="task-title"
                 type="text"
@@ -238,11 +227,11 @@ function TaskCreateDialogContent({ onClose, onCreated }) {
                 placeholder="Contoh: Laptop tidak dapat terhubung ke jaringan"
                 disabled={submitting}
                 autoFocus
-                className={inputClassName}
+                className={taskInputClassName}
               />
-            </FormField>
+            </TaskFormField>
 
-            <FormField
+            <TaskFormField
               label="Deskripsi masalah"
               htmlFor="task-description"
               error={errors.description}
@@ -256,11 +245,11 @@ function TaskCreateDialogContent({ onClose, onCreated }) {
                 placeholder="Jelaskan gejala, lokasi, dan informasi yang sudah dicoba..."
                 rows={4}
                 disabled={submitting}
-                className={`${inputClassName} resize-y`}
+                className={`${taskInputClassName} resize-y`}
               />
-            </FormField>
+            </TaskFormField>
 
-            <FormField
+            <TaskFormField
               label="Divisi penanggung jawab"
               htmlFor="task-division"
               error={errors.divisionId || divisionsError}
@@ -272,7 +261,7 @@ function TaskCreateDialogContent({ onClose, onCreated }) {
                   updateField("divisionId", event.target.value)
                 }
                 disabled={submitting || divisionsLoading}
-                className={inputClassName}
+                className={taskInputClassName}
               >
                 <option value="">
                   {divisionsLoading
@@ -287,18 +276,18 @@ function TaskCreateDialogContent({ onClose, onCreated }) {
                   </option>
                 ))}
               </select>
-            </FormField>
+            </TaskFormField>
 
-            <FormField label="Klien" error={errors.clientId}>
+            <TaskFormField label="Klien" error={errors.clientId}>
               <ClientPicker
                 value={selectedClient}
                 onChange={handleClientChange}
                 disabled={submitting}
                 error={Boolean(errors.clientId)}
               />
-            </FormField>
+            </TaskFormField>
 
-            <FormField
+            <TaskFormField
               label="Aset klien"
               htmlFor="task-asset"
               error={assetError}
@@ -315,7 +304,7 @@ function TaskCreateDialogContent({ onClose, onCreated }) {
                 disabled={
                   submitting || !selectedClient || assetsLoading || !!assetError
                 }
-                className={inputClassName}
+                className={taskInputClassName}
               >
                 <option value="">
                   {assetsLoading ? "Memuat aset..." : "Tanpa aset"}
@@ -326,10 +315,10 @@ function TaskCreateDialogContent({ onClose, onCreated }) {
                   </option>
                 ))}
               </select>
-            </FormField>
+            </TaskFormField>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <FormField label="Prioritas" htmlFor="task-priority">
+              <TaskFormField label="Prioritas" htmlFor="task-priority">
                 <select
                   id="task-priority"
                   value={form.priority}
@@ -337,7 +326,7 @@ function TaskCreateDialogContent({ onClose, onCreated }) {
                     updateField("priority", event.target.value)
                   }
                   disabled={submitting}
-                  className={inputClassName}
+                  className={taskInputClassName}
                 >
                   {priorityOptions.map((priority) => (
                     <option key={priority} value={priority}>
@@ -345,9 +334,9 @@ function TaskCreateDialogContent({ onClose, onCreated }) {
                     </option>
                   ))}
                 </select>
-              </FormField>
+              </TaskFormField>
 
-              <FormField label="Tenggat" htmlFor="task-due-date">
+              <TaskFormField label="Tenggat" htmlFor="task-due-date">
                 <input
                   id="task-due-date"
                   type="date"
@@ -356,9 +345,9 @@ function TaskCreateDialogContent({ onClose, onCreated }) {
                     updateField("dueDate", event.target.value)
                   }
                   disabled={submitting}
-                  className={inputClassName}
+                  className={taskInputClassName}
                 />
-              </FormField>
+              </TaskFormField>
             </div>
           </div>
 

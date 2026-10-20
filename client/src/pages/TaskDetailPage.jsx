@@ -15,10 +15,14 @@ import { Loading } from "../components/Loading";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { updateStatusTask } from "../services/taskService";
-import { statusUpdateRoles } from "../constants/taskConstants";
+import {
+  statusUpdateRoles,
+  taskEditRoles,
+} from "../constants/taskConstants";
 import { useTaskActivity } from "../hooks/useTaskActivity";
 import { useTaskMutations } from "../hooks/useTaskMutations";
 
+import { TaskEditDialog } from "../components/tasks/TaskEditDialog";
 import { TaskHeader } from "../components/tasks/TaskHeader";
 import { TaskStatusWorkflow } from "../components/tasks/TaskStatusWorkflow";
 import { TaskClientAssetSection } from "../components/tasks/TaskClientAssetSection";
@@ -51,6 +55,7 @@ export function TaskDetailPage() {
   const [statusUpdate, setStatusUpdate] = useState(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusError, setStatusError] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
   const returnTo = location.state?.backgroundLocation || "/dashboard";
   const taskId = params.taskId || params.id;
   const { task, loading, error, refetch } = useTaskDetail(taskId);
@@ -58,6 +63,7 @@ export function TaskDetailPage() {
   const userRole =
     typeof userProfile?.role === "string" ? userProfile.role.toUpperCase() : "";
   const canUpdateStatus = statusUpdateRoles.has(userRole);
+  const canEdit = taskEditRoles.has(userRole);
   const { updateTaskLocally } = useTask();
   const { success: showSuccessToast, error: showErrorToast } = useToast();
 
@@ -209,6 +215,8 @@ export function TaskDetailPage() {
           taskId={taskId}
           displayedStatus={displayedStatus}
           returnTo={returnTo}
+          canEdit={canEdit}
+          onEdit={() => setEditOpen(true)}
         />
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
@@ -279,6 +287,14 @@ export function TaskDetailPage() {
           onStatusSubmit={handleStatusSubmit}
         />
       </section>
+
+      <TaskEditDialog
+        open={editOpen}
+        task={task}
+        onClose={() => setEditOpen(false)}
+        onSaved={() => refetch()}
+        onDeleted={() => navigate(returnTo, { replace: true })}
+      />
     </div>
   );
 }
