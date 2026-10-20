@@ -8,6 +8,7 @@ import notificationRoutes from "./notification.routes.js";
 import clientRoutes from "./client.routes.js";
 import assetRoutes from "./asset.routes.js";
 import divisionRoutes from "./division.routes.js";
+import dashboardRoutes from "./dashboard.routes.js";
 
 const router = Router();
 
@@ -24,5 +25,7 @@ router.use("/clients", requireAuth, attachProfile, clientRoutes);
 router.use("/assets", requireAuth, attachProfile, assetRoutes);
 
 router.use("/divisions", requireAuth, attachProfile, divisionRoutes);
+
+router.use("/dashboard", requireAuth, attachProfile, dashboardRoutes);
 
 export default router;
