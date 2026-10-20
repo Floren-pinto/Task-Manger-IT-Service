@@ -2,12 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle, LoaderCircle } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { useToast } from "../contexts/ToastContext";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useDivisions } from "../hooks/useDivisions";
 import { useTasks } from "../hooks/useTasks";
 import { useUsers } from "../hooks/useUsers";
 import { TaskCardList } from "../components/tasks/TaskCardList";
+import { TaskCreateDialog } from "../components/tasks/TaskCreateDialog";
 import { TaskFilterBar } from "../components/tasks/TaskFilterBar";
 import { TaskPagination } from "../components/tasks/TaskPagination";
 import { TaskTable } from "../components/tasks/TaskTable";
@@ -25,7 +25,7 @@ const allowedSortFields = new Set(["created_at", "due_date"]);
 export default function TasksPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { userProfile } = useAuth();
-  const toast = useToast();
+  const [createOpen, setCreateOpen] = useState(false);
 
   const page = Math.max(Number(searchParams.get("page")) || 1, 1);
   const limit = Math.min(
@@ -206,7 +206,15 @@ export default function TasksPage() {
   const canCreate = taskCreateRoles.has(userRole);
 
   const handleCreate = () => {
-    toast.info("Form tambah tiket akan tersedia pada tahap berikutnya.");
+    setCreateOpen(true);
+  };
+
+  const handleTaskCreated = () => {
+    if (page !== 1) {
+      updateFilters({ page: undefined });
+    } else {
+      refetch();
+    }
   };
 
   const emptyMessage = hasSearchFilters
@@ -289,6 +297,12 @@ export default function TasksPage() {
           </>
         )}
       </div>
+
+      <TaskCreateDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={handleTaskCreated}
+      />
     </div>
   );
 }

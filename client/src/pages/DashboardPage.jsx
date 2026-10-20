@@ -2,8 +2,10 @@ import { useMemo, useState } from "react";
 import { MapPin } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Loading } from "../components/Loading";
+import { TaskCreateDialog } from "../components/tasks/TaskCreateDialog";
+import { useAuth } from "../contexts/AuthContext";
 import { useTask } from "../contexts/TaskContext";
-import { useToast } from "../contexts/ToastContext";
+import { taskCreateRoles } from "../constants/taskConstants";
 import { formatTaskId } from "../utils/formatTaskId";
 
 const statusStyles = {
@@ -68,10 +70,14 @@ function assigneeNames(assignments) {
 export default function DashboardPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const toast = useToast();
+  const { userProfile } = useAuth();
   const { tasks, loading, error, onRefreshTasks: fetchTasks } = useTask();
   const [activeFilter, setActiveFilter] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const userRole =
+    typeof userProfile?.role === "string" ? userProfile.role.toUpperCase() : "";
+  const canCreate = taskCreateRoles.has(userRole);
 
   const activeTasks = tasks.filter(
     (task) => task.status !== "COMPLETED" && task.status !== "CANCELLED",
@@ -223,15 +229,15 @@ export default function DashboardPage() {
               className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none placeholder:text-slate-400 focus:ring-0"
             />
           </label>
-          <button
-            type="button"
-            onClick={() =>
-              toast.info("Form tambah tiket belum tersedia.")
-            }
-            className="shrink-0 rounded-lg bg-[#0EA5E9] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#0284C7]"
-          >
-            + Add Ticket
-          </button>
+          {canCreate && (
+            <button
+              type="button"
+              onClick={() => setCreateOpen(true)}
+              className="shrink-0 rounded-lg bg-[#0EA5E9] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#0284C7]"
+            >
+              + Add Ticket
+            </button>
+          )}
         </div>
       </section>
 
@@ -378,6 +384,12 @@ export default function DashboardPage() {
           </p>
         )}
       </div>
+
+      <TaskCreateDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={fetchTasks}
+      />
     </div>
   );
 }
