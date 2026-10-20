@@ -29,7 +29,6 @@ export const workflowSteps = [
 
 export const statusStep = {
   PENDING: 0,
-  ASSIGNED: 1,
   IN_PROGRESS: 2,
   ON_HOLD: 2,
   COMPLETED: 3,
@@ -37,17 +36,15 @@ export const statusStep = {
 };
 
 export const statusLabels = {
-  PENDING: "Menunggu",
-  ASSIGNED: "Ditugaskan",
+  PENDING: "Baru",
   IN_PROGRESS: "Dikerjakan",
-  ON_HOLD: "Tertahan",
+  ON_HOLD: "Menunggu Sparepart",
   COMPLETED: "Selesai",
   CANCELLED: "Dibatalkan",
 };
 
 export const statusStyles = {
-  PENDING: "border-orange-200 bg-orange-50 text-orange-600",
-  ASSIGNED: "border-slate-200 bg-slate-100 text-slate-700",
+  PENDING: "border-blue-200 bg-blue-50 text-blue-700",
   IN_PROGRESS: "border-green-200 bg-green-50 text-green-700",
   ON_HOLD: "border-orange-200 bg-orange-50 text-orange-700",
   COMPLETED: "border-slate-200 bg-slate-50 text-slate-500",
