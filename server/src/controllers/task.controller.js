@@ -7,13 +7,48 @@ import {
   attachSignedAttachmentUrls,
 } from "../utils/attachmentUrl.js";
 
+function normalizeDateBound(value, endOfDay = false) {
+  if (!value) return value;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const time = endOfDay ? "23:59:59.999" : "00:00:00.000";
+    return `${value}T${time}Z`;
+  }
+
+  return value;
+}
+
+function sanitizeSearch(value) {
+  return String(value)
+    .trim()
+    .replace(/^#/, "")
+    .replace(/[,()%"]/g, " ")
+    .trim();
+}
+
 export const listTasks = asyncHandler(async (req, res) => {
-  const { status, priority, page = 1, limit = 20 } = req.query;
+  const {
+    status,
+    priority,
+    page = 1,
+    limit = 20,
+    search,
+    divisionId,
+    clientId,
+    technicianId,
+    dueFrom,
+    dueTo,
+    sortBy,
+    sortOrder,
+    includeDeleted,
+  } = req.query;
 
   const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
   const safePage = Math.max(Number(page) || 1, 1);
   const from = (safePage - 1) * safeLimit;
   const to = from + safeLimit - 1;
+  const sortColumn = sortBy === "due_date" ? "due_date" : "created_at";
+  const ascending = String(sortOrder).toLowerCase() === "asc";
 
   let query = req.supabase
     .from("tasks")
@@ -21,24 +56,78 @@ export const listTasks = asyncHandler(async (req, res) => {
       `id, title, description, priority, status, due_date, created_at, updated_at, client:clients(id, name), division:divisions(id, name), assignments:task_assignments(user:users(id, name))`,
       { count: "exact" },
     )
-    .order("created_at", { ascending: false })
+    .order(sortColumn, { ascending })
     .range(from, to);
 
-  if (status) {
-    query = query.eq("status", status);
+  if (includeDeleted !== true) {
+    query = query.is("deleted_at", null);
   }
-  if (priority) {
-    query = query.eq("priority", priority);
+  if (status) query = query.eq("status", status);
+  if (priority) query = query.eq("priority", priority);
+  if (divisionId) query = query.eq("division_id", divisionId);
+  if (clientId) query = query.eq("client_id", clientId);
+
+  if (dueFrom) {
+    query = query.gte("due_date", normalizeDateBound(dueFrom));
   }
+  if (dueTo) {
+    query = query.lte("due_date", normalizeDateBound(dueTo, true));
+  }
+
+  const keyword = search ? sanitizeSearch(search) : "";
+  if (keyword) {
+    query = query.or(`title.ilike.%${keyword}%,id.ilike.%${keyword}%`);
+  }
+
+  if (technicianId) {
+    const { data: assignments, error: assignmentError } = await req.supabase
+      .from("task_assignments")
+      .select("task_id")
+      .eq("user_id", technicianId);
+
+    if (assignmentError) {
+      throw new ApiError(500, "Failed to filter tasks by technician");
+    }
+
+    const taskIds = [
+      ...new Set((assignments ?? []).map((assignment) => assignment.task_id)),
+    ];
+
+    if (taskIds.length === 0) {
+      return ok(res, {
+        tasks: [],
+        pagination: {
+          page: safePage,
+          limit: safeLimit,
+          total: 0,
+          totalPages: 0,
+        },
+      });
+    }
+
+    query = query.in("id", taskIds);
+  }
+
   const { data, count, error } = await query;
-  if (error) throw new ApiError(500, "Failed to fetch tasks");
+  if (error) {
+    if (error.code === "22P02") {
+      throw new ApiError(400, "Invalid filter value");
+    }
+    if (error.code === "22007" || error.code === "22008") {
+      throw new ApiError(400, "Invalid date filter");
+    }
+    throw new ApiError(500, "Failed to fetch tasks");
+  }
+
+  const total = count ?? 0;
 
   return ok(res, {
     tasks: data,
     pagination: {
       page: safePage,
       limit: safeLimit,
-      total: count,
+      total,
+      totalPages: Math.ceil(total / safeLimit),
     },
   });
 });
