@@ -4,6 +4,14 @@ export const statusUpdateRoles = new Set([
   "TECHNICIAN",
 ]);
 
+export const taskCreateRoles = new Set([
+  "SUPER_ADMIN",
+  "MANAGER_DIVISION",
+  "STAFF",
+]);
+
+export const taskEditRoles = new Set([...taskCreateRoles, "TECHNICIAN"]);
+
 export const availableStatuses = [
   "PENDING",
   "IN_PROGRESS",
@@ -46,12 +54,30 @@ export const statusStyles = {
   CANCELLED: "border-rose-200 bg-rose-50 text-rose-700",
 };
 
+export const priorityOptions = ["LOW", "MEDIUM", "HIGH", "URGENT"];
+
+export const priorityLabels = {
+  LOW: "Rendah",
+  MEDIUM: "Sedang",
+  HIGH: "Tinggi",
+  URGENT: "Mendesak",
+};
+
 export const priorityStyles = {
   LOW: "bg-slate-100 text-slate-600",
   MEDIUM: "bg-sky-50 text-sky-700",
   HIGH: "bg-orange-50 text-orange-700",
   URGENT: "bg-orange-50 text-orange-600",
 };
+
+export const taskSortOptions = [
+  { value: "created_at:desc", label: "Terbaru" },
+  { value: "created_at:asc", label: "Terlama" },
+  { value: "due_date:asc", label: "Tenggat terdekat" },
+  { value: "due_date:desc", label: "Tenggat terjauh" },
+];
+
+export const pageSizeOptions = [10, 20, 50, 100];
 
 export const allowedAttachmentTypes = [
   "image/jpeg",
