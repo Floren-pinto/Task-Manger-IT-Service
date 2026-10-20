@@ -224,11 +224,8 @@ export const createTask = asyncHandler(async (req, res) => {
 
   if (error) {
     if (error.code === "23503") {
-      throw new ApiError(
-        400,
-        "Invalid divisionId, clientId, or assetId",
-        error.message,
-      );
+      console.error("Create task invalid reference:", error.message);
+      throw new ApiError(400, "Invalid divisionId, clientId, or assetId");
     }
     if (error.code === "22P02") {
       throw new ApiError(400, "Invalid priority value");
@@ -291,7 +288,8 @@ export const assignTask = asyncHandler(async (req, res) => {
       throw new ApiError(409, "This user is already assigned to this task");
     }
     if (error.code === "23503") {
-      throw new ApiError(400, "Invalid taskId or userId", error.message);
+      console.error("Assign task invalid reference:", error.message);
+      throw new ApiError(400, "Invalid taskId or userId");
     }
     throw new ApiError(500, "Failed to assign task");
   }
@@ -398,20 +396,19 @@ export const updateTask = asyncHandler(async (req, res) => {
       throw new ApiError(404, "Task not found or accessible");
     }
     if (error.code === "P0001") {
-      throw new ApiError(403, error.message);
+      console.error("Task update rejected by database trigger:", error.message);
+      throw new ApiError(403, "You are not allowed to update this field");
     }
     if (error.code === "42501") {
       throw new ApiError(403, "You are not allowed to update this task");
     }
     if (error.code === "23503") {
-      throw new ApiError(
-        400,
-        "Invalid divisionId, clientId, or assetId",
-        error.message,
-      );
+      console.error("Update task invalid reference:", error.message);
+      throw new ApiError(400, "Invalid divisionId, clientId, or assetId");
     }
     if (error.code === "23502") {
-      throw new ApiError(400, "Required field cannot be null", error.message);
+      console.error("Update task missing required field:", error.message);
+      throw new ApiError(400, "Required field cannot be null");
     }
     if (error.code === "22007" || error.code === "22008") {
       throw new ApiError(400, "Invalid dueDate value");

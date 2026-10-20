@@ -19,6 +19,11 @@ export const listUsers = asyncHandler(async (req, res) => {
   if (role) query = query.eq("role", role);
   if (status) query = query.eq("is_active", status);
   const { data, error } = await query;
-  if (error) throw new ApiError(500, "failed to fetch users", error.message);
+
+  if (error) {
+    console.error("Failed to fetch users:", error.message);
+    throw new ApiError(500, "failed to fetch users");
+  }
+
   return ok(res, data);
 });
