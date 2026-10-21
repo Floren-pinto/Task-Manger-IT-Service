@@ -18,7 +18,8 @@ Access to data and operations is controlled according to each user's role and th
 
 - React.js
 - Express.js
-- Prisma ORM
+- Supabase JS Client
+- Prisma ORM (tooling & maintenance scripts)
 - PostgreSQL
 - Supabase
 - Git & GitHub
@@ -28,15 +29,15 @@ Access to data and operations is controlled according to each user's role and th
 - [x] Project initialization
 - [x] Database setup
 - [x] Role-based database permissions
-- [ ] Authentication
-- [ ] Task Management
-- [ ] Task Assignment
-- [ ] Task Status History
-- [ ] Task Attachments
+- [x] Authentication
+- [x] Task Management
+- [x] Task Assignment
+- [x] Task Status History
+- [x] Task Attachments
 - [ ] Service Reports
 - [ ] Client Management
-- [ ] Notification
-- [ ] Dashboard
+- [x] Notification
+- [x] Dashboard
 
 ## Database
 
@@ -67,7 +68,9 @@ The `task_attachments` table controls access according to the task scope. Techni
 
 The `service_reports` table is also designed as immutable data. `MANAGER_DIVISION` and `TECHNICIAN` can read reports within the task scope, while reports cannot be updated or deleted.
 
-The `clients` table provides role-based access where `MANAGER_DIVISION` has full access with soft delete, `STAFF` has full access except delete, and `TECHNICIAN` has read-only access.
+The `clients` table provides role-based access where `MANAGER_DIVISION` has full access with soft delete, `STAFF` has full access with soft delete, and `TECHNICIAN` has read-only access.
+
+The dashboard summary uses the `get_dashboard_summary()` RPC. Apply `server/supabase/sql/functions/05_dashboard_functions.sql` in the Supabase SQL editor before using `GET /api/dashboard/summary`.
 
 ## Progress
 
@@ -79,33 +82,33 @@ The `clients` table provides role-based access where `MANAGER_DIVISION` has full
 - [x] Role-based database permissions (RLS)
 - [x] Express backend skeleton (routing, middleware, JWT verification dari Supabase)
 - [x] RBAC middleware & protected routes (FR-02, FR-04)
+- [x] Task Management v1 (list, search, filter, sort, pagination, create, edit, soft delete)
 - [x] Task Management (create, assign, status update — FR-20–FR-27)
 - [x] Notification
 - [x] Task Assignment
+- [x] Authentication (Supabase Auth di frontend — FR-01)
+- [x] Task Status History
+- [x] Task Attachments
+- [x] Dashboard summary (role-scoped metrics, workload per division/technician, recent tasks)
 
 ### In Progress
 
-- [ ] Authentication (Supabase Auth di frontend — FR-01)
-- [ ] Task Status History
 - [ ] Client Management
 
 ### Planned
 
-- [ ] Task Attachments
 - [ ] Service Reports
-- [ ] Dashboard & Reporting
 
 ## Feature Improvements
 
 ### Task Management
 
-- [ ] Add task priority
-- [ ] Add due date
-- [ ] Add task search
-- [ ] Add task filtering
-- [ ] Add task sorting
-- [ ] Add pagination
-- [ ] Improve task validation
+- [x] Add task priority
+- [x] Add due date
+- [x] Add task search
+- [x] Add task filtering
+- [x] Add task sorting
+- [x] Add pagination
 
 ### Role & Permission
 
@@ -115,10 +118,10 @@ The `clients` table provides role-based access where `MANAGER_DIVISION` has full
 
 ### UI/UX
 
-- [ ] Add loading states
-- [ ] Add empty states
-- [ ] Add error states
-- [ ] Improve responsive design
+- [x] Add loading states
+- [x] Add empty states
+- [x] Add error states
+- [x] Improve responsive design
 
 ## Installation
 
@@ -126,9 +129,7 @@ Installation instructions will be added once the initial application setup is co
 
 ## Future Improvements
 
-- Implement authentication and authorization
-- Connect the frontend with the backend API
-- Implement task management workflows
-- Implement notifications
-- Add dashboard and task statistics
-- Improve application security and validation
+- Add client management and service report UI
+- Add automated integration tests for RLS and role-scoped endpoints
+- Harden production configuration (CORS allowlist, structured logging, validation)
+- Add scheduled cleanup for orphaned storage files

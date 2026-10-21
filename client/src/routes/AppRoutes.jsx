@@ -10,6 +10,7 @@ import DashboardLayout from "../layouts/DashboardLayout";
 import LoginPage from "../pages/LoginPage";
 import DashboardPage from "../pages/DashboardPage";
 import GenericPage from "../pages/GenericPage";
+import TasksPage from "../pages/TasksPage";
 import { TaskDetailPage } from "../pages/TaskDetailPage";
 
 export default function AppRoutes() {
@@ -31,15 +32,7 @@ export default function AppRoutes() {
           <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/tasks/:id" element={<TaskDetailPage />} />
-            <Route
-              path="/tasks"
-              element={
-                <GenericPage
-                  title="Tasks & Tickets"
-                  description="Daftar semua penugasan tiket dan filter status"
-                />
-              }
-            />
+            <Route path="/tasks" element={<TasksPage />} />
             <Route
               path="/divisions"
               element={

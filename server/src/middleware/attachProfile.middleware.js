@@ -4,7 +4,7 @@ import { ApiError } from "../utils/ApiError.js";
 export const attachProfile = asyncHandler(async (req, res, next) => {
   const { data, error } = await req.supabase
     .from("users")
-    .select("id, name, email, role, division_id, is_active ")
+    .select("id, name, email, role, division_id, is_active, deleted_at")
     .eq("id", req.user.id)
     .single();
 

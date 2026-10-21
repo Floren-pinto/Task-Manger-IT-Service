@@ -1,13 +1,22 @@
+import { env } from "../config/env.js";
 import { ApiError } from "../utils/ApiError.js";
 
 export const errorHandler = (err, req, res, next) => {
-  //  Stack Trace
   if (err instanceof ApiError) {
-    return res
-      .status(err.statusCode)
-      .json({ success: false, message: err.message, error: err.details });
+    if (err.statusCode >= 500 || err.details) {
+      console.error(`${req.method} ${req.originalUrl}`, err);
+    }
+
+    const payload = { success: false, message: err.message };
+
+    if (env.nodeEnv !== "production" && err.details) {
+      payload.error = err.details;
+    }
+
+    return res.status(err.statusCode).json(payload);
   }
-  console.error(err); // TODO: ganti logger proper (pino) sebelum production
+
+  console.error(`${req.method} ${req.originalUrl}`, err); // TODO: ganti logger proper (pino) sebelum production
   return res
     .status(500)
     .json({ success: false, message: "Internal server error" });

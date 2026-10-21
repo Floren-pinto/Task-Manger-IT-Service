@@ -70,6 +70,7 @@ coverage/
 Thumbs.db
 
 # Other
+.opencode/
 .agents
 .claude
 .windsurf
