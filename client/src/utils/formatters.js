@@ -37,3 +37,17 @@ export function assigneeNames(assignments) {
 
   return names.length > 0 ? names.join(", ") : "Nama teknisi tidak tersedia";
 }
+
+export function isArchived(record) {
+  return Boolean(record?.deleted_at);
+}
+
+export function formatClientName(client) {
+  return client?.name?.trim() || "Client tanpa nama";
+}
+
+export function formatAssetLabel(asset) {
+  if (!asset) return "Tanpa aset";
+  const name = asset.name?.trim() || "Aset tanpa nama";
+  return asset.serial_number ? `${name} · ${asset.serial_number}` : name;
+}

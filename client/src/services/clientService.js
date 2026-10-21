@@ -31,3 +31,23 @@ export const getClientById = async (clientId) => {
   const response = await api.get(`/clients/${clientId}`);
   return response.data?.data;
 };
+
+export const createClient = async (payload) => {
+  const response = await api.post("/clients", payload);
+  return response.data?.data;
+};
+
+export const updateClient = async (clientId, payload) => {
+  const response = await api.patch(`/clients/${clientId}`, payload);
+  return response.data?.data;
+};
+
+export const deleteClient = async (clientId) => {
+  const response = await api.patch(`/clients/${clientId}`, { deleted: true });
+  return response.data?.data;
+};
+
+export const restoreClient = async (clientId) => {
+  const response = await api.patch(`/clients/${clientId}`, { deleted: false });
+  return response.data?.data;
+};
