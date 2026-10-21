@@ -11,6 +11,7 @@ import LoginPage from "../pages/LoginPage";
 import DashboardPage from "../pages/DashboardPage";
 import GenericPage from "../pages/GenericPage";
 import TasksPage from "../pages/TasksPage";
+import ClientsPage from "../pages/ClientsPage";
 import { TaskDetailPage } from "../pages/TaskDetailPage";
 
 export default function AppRoutes() {
@@ -42,15 +43,7 @@ export default function AppRoutes() {
                 />
               }
             />
-            <Route
-              path="/clients"
-              element={
-                <GenericPage
-                  title="Clients & Locations"
-                  description="Daftar klien, gedung, dan stasiun kerja"
-                />
-              }
-            />
+            <Route path="/clients" element={<ClientsPage />} />
             <Route
               path="/reports"
               element={
