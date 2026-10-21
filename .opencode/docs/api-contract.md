@@ -292,62 +292,78 @@ Visibility: hanya milik sendiri (`user_id = auth.uid()`), **tanpa pengecualian S
 Visibility (RLS): TECHNICIAN & STAFF hanya baris aktif (`deleted_at IS NULL`); MANAGER_DIVISION & SUPER_ADMIN juga melihat soft-deleted.
 
 ### `GET /api/clients` ✅
-- Query: `page`, `limit`, `search`
-- 200: `data` = `{ clients: [...], pagination: { page, limit, total } }` (tanpa `totalPages`)
-- Item: `{ id, name, contact, email, address, service_type, created_at, updated_at }` — **tanpa `deleted_at`** 🐞
-- `search` hanya pada `name`; jika `search` diisi dan hasil kosong → 404 `"No clients found matching with the search criteria"`.
-- Error query → 500 `"failed to fetch clients"`.
-- 🐞 Pengecekan `data.length` dilakukan sebelum `error`; jika query gagal dan `data` null, proses bisa error (temuan #30).
+- Query: `page`, `limit`, `search`, `includeDeleted`
+- `includeDeleted=true` menghapus filter `deleted_at`; RLS tetap membatasi role yang benar-benar boleh melihat baris arsip.
+- `search` hanya pada `name`, di-`trim` dan dibersihkan dari karakter `,()%"` sebelum `ilike`.
+- `search` tanpa hasil → `200` dengan `clients: []` dan `total: 0` (bukan 404).
+- 200: `data` = `{ clients: [...], pagination: { page, limit, total, totalPages } }`
+- Item: `{ id, name, contact, email, address, service_type, deleted_at, created_at, updated_at }`
+- Error query → 500 `"Failed to fetch clients"`; filter tidak valid → 400 `"Invalid filter value"`.
 
 ### `GET /api/clients/:clientId` ✅
-- 200: `data` = field di atas + `tasks: [{ id, title, description, priority, status, due_date, created_at, updated_at }]` + `assets: [{ id, name, description, created_at, updated_at }]`
-- 🐞 Query memilih `assets.description`, sedangkan tabel `assets` tidak punya kolom itu (`id, name, serial_number, type, client_id, deleted_at, ...`) → endpoint berpotensi 500. Seharusnya `serial_number, type`.
-- Not found: `.single()` → PGRST116 → 404 `"client not found"`.
+- Query: `includeDeletedAssets` (boolean); hanya efektif untuk SUPER_ADMIN/MANAGER_DIVISION. RLS asset tetap menjadi pengaman.
+- Client dan asset diambil dalam dua query terpisah. Asset default hanya `deleted_at IS NULL`.
+- 200: `data` = `{ id, name, contact, email, address, service_type, deleted_at, created_at, updated_at, assets: [{ id, name, serial_number, type, deleted_at, created_at, updated_at }] }`
+- Embed `tasks` **dihapus** dari response; riwayat task akan dilayani endpoint service history.
+- `clientId` bukan UUID → 400 `"Invalid client ID"`.
+- Not found: `.single()` → PGRST116 → 404 `"Client not found"`.
 
 ### `POST /api/clients` ✅
 - Role (RLS): semua kecuali TECHNICIAN.
-- Body: `{ name, contact, email?, address, serviceType }`; `email` boleh `null`.
+- Body: `{ name, contact, email?, address, serviceType }`; semua string di-`trim`; `email` opsional dan kosong → `null`.
+- Field wajib: `name`, `contact`, `address`, `serviceType`. Email bila diisi harus valid.
 - 201: baris `clients` mentah, message `"Client created successfully"`.
-- Error: 400 field wajib (pesan menyebut `email` wajib padahal opsional, temuan #27); 403 `"you are not allowed to create a new client"` (42501); 500.
+- Error: 400 validasi (`"name, contact, address, and serviceType are required"`, `"email must be a valid email address"`); 403 `"You are not allowed to create a client"` (42501); 500.
 
 ### `PATCH /api/clients/:clientId` ✅
-- Body parsial `{ name?, contact?, email?, address?, serviceType?, deleted? }`; minimal satu field.
+- Body parsial `{ name?, contact?, email?, address?, serviceType?, deleted? }`; minimal satu field; semua string di-`trim`.
+- `email` hanya masuk payload bila dikirim (`email !== undefined`); `""`/spasi → `null` (temuan #20 selesai).
 - `deleted`: `true` = soft delete, `false` = restore. Hanya diterapkan jika bertipe boolean.
 - Role: TECHNICIAN ditolak app layer (403); STAFF boleh update baris aktif tetapi **tidak boleh** `deleted: true` (403); MANAGER_DIVISION/SUPER_ADMIN boleh update dan soft delete/restore.
 - RLS juga menolak STAFF/TECHNICIAN mengedit baris soft-deleted.
-- 🐞 Kondisi email `email !== undefined || email !== null || email !== ""` selalu true; `email` selalu masuk payload dan tidak bisa dikosongkan sebagai satu-satunya perubahan (temuan #20).
-- 200: baris `clients` mentah; message `"Client updated successfully"` / `"Client deleted successfully"`.
-- Error: 400 tidak ada field; 403; 404 `"Client not found"` (PGRST116); 500.
+- `clientId` bukan UUID → 400 `"Invalid client ID"`.
+- 200: baris `clients` mentah; message `"Client updated successfully"` / `"Client deleted successfully"` / `"Client restored successfully"`.
+- Error: 400 tidak ada field; 403 `"You are not allowed to update this client"` (42501); 404 `"Client not found"` (PGRST116); 500.
 
 ---
 
 ## 6. Assets
 
-Visibility/aksi: RLS `USING(TRUE)` untuk semua role. Asset soft-deleted **tetap terlihat** oleh semua role karena tidak ada filter `deleted_at`; perlu konfirmasi apakah ini memang disengaja (temuan #19).
+Visibility (RLS, diperbarui): STAFF & TECHNICIAN hanya melihat asset aktif (`deleted_at IS NULL`); SUPER_ADMIN & MANAGER_DIVISION boleh melihat asset arsip. Policy INSERT/UPDATE tetap `TRUE` untuk semua authenticated (temuan #19 selesai).
 
 ### `GET /api/assets` ✅
-- Query: `page`, `limit`, `search`
-- 200: `data` = `{ assets: [...], pagination: { page, limit, total } }` (tanpa `totalPages`)
-- Item: `{ id, name, serial_number, type, client: { id, name }, created_at, updated_at }` — **tanpa `deleted_at`** 🐞
-- `search` hanya pada `name`; jika `search` diisi dan hasil kosong → 404 `"No assets found matching with the search criteria"`.
-- Error query → 500 `"failed to fetch assets"`.
-- 🐞 Pengecekan `data.length` juga dilakukan sebelum `error` (temuan #30).
-- 🐞 Karena soft-deleted tetap terlihat dan `deleted_at` tidak dikembalikan, list dapat memuat asset terhapus tanpa penanda (temuan #19).
+- Query: `page`, `limit`, `search`, `clientId`, `includeDeleted`
+- `clientId` bukan UUID → 400 `"Invalid client ID"`; `includeDeleted=true` menghapus filter `deleted_at`.
+- `search` hanya pada `name`, disanitasi; tanpa hasil → `200` dengan `assets: []`.
+- 200: `data` = `{ assets: [...], pagination: { page, limit, total, totalPages } }`
+- Item: `{ id, name, serial_number, type, deleted_at, client: { id, name }, created_at, updated_at }`
+- Error query → 500 `"Failed to fetch assets"`.
 
 ### `GET /api/assets/:assetId` ✅
-- 200: field di atas + `tasks: [{ id, title, description, due_date, created_at, updated_at }]`
-- Not found: `.single()` → PGRST116 → 404 `"asset not found"`; error lain → 500 `"failed to fetch asset detail"`.
+- 200: `{ id, name, serial_number, type, deleted_at, client: { id, name }, created_at, updated_at, tasks: [{ id, title, description, due_date, created_at, updated_at }] }`
+- `assetId` bukan UUID → 400 `"Invalid asset ID"`.
+- Not found: `.single()` → PGRST116 → 404 `"Asset not found"`; error lain → 500 `"Failed to fetch asset detail"`.
 
 ### `POST /api/assets` ✅
-- Body: `{ name, type, clientId, serialNumber? }` (`serialNumber` kosong → `null`).
+- Body: `{ name, type, clientId, serialNumber? }`; string di-`trim`; `serialNumber` kosong → `null`.
+- `clientId` wajib dan harus UUID → 400 `"Invalid client ID"`.
 - 201: baris `assets` mentah, message `"Asset created successfully"`.
 - Error: 400 field wajib; 400 `"Invalid client ID"` (23503); 500.
 
 ### `PATCH /api/assets/:assetId` ✅
 - Body parsial: `name`, `serialNumber` (`""` → `null`), `type`, `clientId`, `deleted` (boolean); minimal satu field.
-- Semua role authenticated dapat mengubah/soft delete/restore sesuai RLS `USING(TRUE)`; app layer tidak membatasi role.
-- 200: baris `assets` mentah, message `"Asset updated successfully"` / `"Asset deleted successfully"`.
-- Error: 400 tidak ada field / `"Invalid client ID"` (23503); 404 `"Asset not found"` (PGRST116); 500.
+- Semua role authenticated dapat mengubah/soft delete/restore sesuai RLS; app layer tidak membatasi role.
+- `assetId`/`clientId` bukan UUID → 400 `"Invalid asset ID"` / `"Invalid client ID"`.
+- 200: baris `assets` mentah, message `"Asset updated successfully"` / `"Asset deleted successfully"` / `"Asset restored successfully"`.
+- Error: 400 tidak ada field / `"Invalid client ID"` (23503); 403 `"You are not allowed to update this asset"` (42501); 404 `"Asset not found"` (PGRST116); 500.
+
+### Policy `03_assets_policy.sql` ✅
+```sql
+-- SELECT: aktif untuk semua role; baris arsip hanya admin/manager
+deleted_at IS NULL OR get_my_role() IN ('SUPER_ADMIN', 'MANAGER_DIVISION')
+```
+- INSERT/UPDATE tetap `TRUE` untuk `AUTHENTICATED`.
+- File sekarang memakai `DROP POLICY IF EXISTS` agar aman dijalankan ulang di Supabase SQL Editor.
 
 ---
 

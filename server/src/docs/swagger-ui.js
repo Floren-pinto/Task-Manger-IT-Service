@@ -29,6 +29,8 @@ const swaggerOptions = {
     ],
     tags: [
       { name: "Divisions", description: "Data divisi penanggung jawab" },
+      { name: "Clients", description: "Data pelanggan dan lokasi layanan" },
+      { name: "Assets", description: "Aset milik client" },
       { name: "Tasks", description: "Tiket dan penugasan layanan IT" },
       { name: "Dashboard", description: "Ringkasan operasional tiket" },
     ],
@@ -61,6 +63,86 @@ const swaggerOptions = {
             limit: { type: "integer", example: 20 },
             total: { type: "integer", example: 42 },
             totalPages: { type: "integer", example: 3 },
+          },
+        },
+        Asset: {
+          type: "object",
+          properties: {
+            id: { type: "string", format: "uuid" },
+            name: { type: "string" },
+            serial_number: { type: "string", nullable: true },
+            type: { type: "string" },
+            deleted_at: {
+              type: "string",
+              format: "date-time",
+              nullable: true,
+            },
+            client: {
+              type: "object",
+              nullable: true,
+              properties: {
+                id: { type: "string", format: "uuid" },
+                name: { type: "string" },
+              },
+            },
+            created_at: { type: "string", format: "date-time" },
+            updated_at: { type: "string", format: "date-time" },
+          },
+        },
+        Client: {
+          type: "object",
+          properties: {
+            id: { type: "string", format: "uuid" },
+            name: { type: "string" },
+            contact: { type: "string", nullable: true },
+            email: { type: "string", nullable: true },
+            address: { type: "string", nullable: true },
+            service_type: { type: "string", nullable: true },
+            deleted_at: {
+              type: "string",
+              format: "date-time",
+              nullable: true,
+            },
+            created_at: { type: "string", format: "date-time" },
+            updated_at: { type: "string", format: "date-time" },
+            assets: {
+              type: "array",
+              items: { $ref: "#/components/schemas/Asset" },
+            },
+          },
+        },
+        ClientListResponse: {
+          type: "object",
+          properties: {
+            success: { type: "boolean", example: true },
+            message: { type: "string", example: "OK" },
+            data: {
+              type: "object",
+              properties: {
+                clients: {
+                  type: "array",
+                  items: { $ref: "#/components/schemas/Client" },
+                },
+                pagination: { $ref: "#/components/schemas/Pagination" },
+              },
+            },
+          },
+        },
+        AssetListResponse: {
+          type: "object",
+          properties: {
+            success: { type: "boolean", example: true },
+            message: { type: "string", example: "OK" },
+            data: {
+              type: "object",
+              properties: {
+                assets: {
+                  type: "array",
+                  items: { $ref: "#/components/schemas/Asset" },
+                },
+                pagination: { $ref: "#/components/schemas/Pagination" },
+              },
+            },
           },
         },
         Task: {
@@ -222,6 +304,267 @@ const swaggerOptions = {
                 },
               },
             },
+          },
+        },
+      },
+      "/api/clients": {
+        get: {
+          tags: ["Clients"],
+          summary: "Ambil daftar client",
+          description:
+            "Mendukung pencarian nama dan pagination. `includeDeleted=true` menampilkan arsip bagi role yang diizinkan RLS.",
+          parameters: [
+            { name: "page", in: "query", schema: { type: "integer", default: 1 } },
+            {
+              name: "limit",
+              in: "query",
+              schema: { type: "integer", default: 20, maximum: 100 },
+            },
+            { name: "search", in: "query", schema: { type: "string" } },
+            {
+              name: "includeDeleted",
+              in: "query",
+              schema: { type: "boolean", default: false },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Daftar client",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ClientListResponse" },
+                },
+              },
+            },
+            401: {
+              description: "Tidak terautentikasi",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+          },
+        },
+        post: {
+          tags: ["Clients"],
+          summary: "Tambah client",
+          description: "Role TECHNICIAN ditolak oleh RLS.",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["name", "contact", "address", "serviceType"],
+                  properties: {
+                    name: { type: "string" },
+                    contact: { type: "string" },
+                    email: { type: "string", nullable: true },
+                    address: { type: "string" },
+                    serviceType: { type: "string" },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            201: { description: "Client dibuat" },
+            400: { description: "Validasi gagal" },
+            403: { description: "Tidak diizinkan" },
+          },
+        },
+      },
+      "/api/clients/{clientId}": {
+        parameters: [
+          {
+            name: "clientId",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        get: {
+          tags: ["Clients"],
+          summary: "Detail client beserta aset",
+          parameters: [
+            {
+              name: "includeDeletedAssets",
+              in: "query",
+              schema: { type: "boolean", default: false },
+              description:
+                "Hanya efektif untuk SUPER_ADMIN/MANAGER_DIVISION; RLS tetap menjadi pengaman.",
+            },
+          ],
+          responses: {
+            200: {
+              description: "Detail client",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      success: { type: "boolean" },
+                      message: { type: "string" },
+                      data: { $ref: "#/components/schemas/Client" },
+                    },
+                  },
+                },
+              },
+            },
+            400: { description: "Client ID tidak valid" },
+            404: { description: "Client tidak ditemukan" },
+          },
+        },
+        patch: {
+          tags: ["Clients"],
+          summary: "Ubah atau arsipkan client",
+          description:
+            "Body parsial. `deleted=true` mengarsipkan, `deleted=false` memulihkan.",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    contact: { type: "string" },
+                    email: { type: "string", nullable: true },
+                    address: { type: "string" },
+                    serviceType: { type: "string" },
+                    deleted: { type: "boolean" },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: "Client diperbarui" },
+            400: { description: "Tidak ada field / ID tidak valid" },
+            403: { description: "Tidak diizinkan" },
+            404: { description: "Client tidak ditemukan" },
+          },
+        },
+      },
+      "/api/assets": {
+        get: {
+          tags: ["Assets"],
+          summary: "Ambil daftar asset",
+          parameters: [
+            { name: "page", in: "query", schema: { type: "integer", default: 1 } },
+            {
+              name: "limit",
+              in: "query",
+              schema: { type: "integer", default: 20, maximum: 100 },
+            },
+            { name: "search", in: "query", schema: { type: "string" } },
+            {
+              name: "clientId",
+              in: "query",
+              schema: { type: "string", format: "uuid" },
+            },
+            {
+              name: "includeDeleted",
+              in: "query",
+              schema: { type: "boolean", default: false },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Daftar asset",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/AssetListResponse" },
+                },
+              },
+            },
+            400: { description: "Filter tidak valid" },
+          },
+        },
+        post: {
+          tags: ["Assets"],
+          summary: "Tambah asset",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["name", "type", "clientId"],
+                  properties: {
+                    name: { type: "string" },
+                    type: { type: "string" },
+                    serialNumber: { type: "string", nullable: true },
+                    clientId: { type: "string", format: "uuid" },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            201: { description: "Asset dibuat" },
+            400: { description: "Validasi gagal / client tidak valid" },
+          },
+        },
+      },
+      "/api/assets/{assetId}": {
+        parameters: [
+          {
+            name: "assetId",
+            in: "path",
+            required: true,
+            schema: { type: "string", format: "uuid" },
+          },
+        ],
+        get: {
+          tags: ["Assets"],
+          summary: "Detail asset",
+          responses: {
+            200: {
+              description: "Detail asset",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      success: { type: "boolean" },
+                      message: { type: "string" },
+                      data: { $ref: "#/components/schemas/Asset" },
+                    },
+                  },
+                },
+              },
+            },
+            400: { description: "Asset ID tidak valid" },
+            404: { description: "Asset tidak ditemukan" },
+          },
+        },
+        patch: {
+          tags: ["Assets"],
+          summary: "Ubah atau arsipkan asset",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    type: { type: "string" },
+                    serialNumber: { type: "string", nullable: true },
+                    clientId: { type: "string", format: "uuid" },
+                    deleted: { type: "boolean" },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: "Asset diperbarui" },
+            400: { description: "Tidak ada field / ID tidak valid" },
+            403: { description: "Tidak diizinkan" },
+            404: { description: "Asset tidak ditemukan" },
           },
         },
       },
