@@ -27,8 +27,8 @@ export const getClients = async (params = {}) => {
   }
 };
 
-export const getClientById = async (clientId) => {
-  const response = await api.get(`/clients/${clientId}`);
+export const getClientById = async (clientId, params = {}) => {
+  const response = await api.get(`/clients/${clientId}`, { params });
   return response.data?.data;
 };
 

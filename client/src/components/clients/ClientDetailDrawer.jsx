@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   ArrowLeft,
-  Building2,
   CalendarClock,
   History,
   LoaderCircle,
@@ -14,11 +13,13 @@ import {
 } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { ClientAssetsSection } from "./ClientAssetsSection";
 import { ClientFormDialog } from "./ClientFormDialog";
 import { useAuth } from "../../contexts/AuthContext";
 import { useClientDetail } from "../../hooks/useClientDetail";
 import { useClientMutations } from "../../hooks/useClientMutations";
 import {
+  assetWriteRoles,
   clientCreateRoles,
   clientDeleteRoles,
   clientStatusLabels,
@@ -56,13 +57,27 @@ export function ClientDetailDrawer() {
   const location = useLocation();
   const navigate = useNavigate();
   const { userProfile } = useAuth();
-  const { client, assets, loading, error, refetch } =
-    useClientDetail(clientId);
-  const { deleteClient, restoreClient, submitting } = useClientMutations();
 
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [restoreOpen, setRestoreOpen] = useState(false);
+  const [showArchivedAssets, setShowArchivedAssets] = useState(false);
+
+  const userRole =
+    typeof userProfile?.role === "string"
+      ? userProfile.role.toUpperCase()
+      : "";
+  const canEdit = clientCreateRoles.has(userRole);
+  const canManageArchive = clientDeleteRoles.has(userRole);
+  const canViewArchivedAssets = canManageArchive;
+
+  const { client, assets, loading, error, refetch } = useClientDetail(
+    clientId,
+    {
+      includeDeletedAssets: canViewArchivedAssets && showArchivedAssets,
+    },
+  );
+  const { deleteClient, restoreClient, submitting } = useClientMutations();
 
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;
@@ -76,12 +91,6 @@ export function ClientDetailDrawer() {
   const returnTo = location.state?.backgroundLocation || "/clients";
   const closeDrawer = () => navigate(returnTo, { replace: true });
 
-  const userRole =
-    typeof userProfile?.role === "string"
-      ? userProfile.role.toUpperCase()
-      : "";
-  const canEdit = clientCreateRoles.has(userRole);
-  const canManageArchive = clientDeleteRoles.has(userRole);
   const archived = isArchived(client);
   const status = archived ? "archived" : "active";
 
@@ -280,28 +289,15 @@ export function ClientDetailDrawer() {
             </div>
           </DetailSection>
 
-          <DetailSection icon={Building2} title="Aset">
-            {assets.length === 0 ? (
-              <p className="m-0 text-sm text-slate-500">
-                Belum ada aset terdaftar untuk client ini.
-              </p>
-            ) : (
-              <ul className="m-0 divide-y divide-slate-100 p-0">
-                {assets.map((asset) => (
-                  <li key={asset.id} className="py-2 first:pt-0 last:pb-0">
-                    <p className="m-0 text-sm font-medium text-slate-700">
-                      {asset.name || "Aset tanpa nama"}
-                    </p>
-                    <p className="m-0 mt-0.5 text-xs text-slate-500">
-                      {[asset.type, asset.serial_number]
-                        .filter(Boolean)
-                        .join(" · ") || "Detail aset belum diisi"}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </DetailSection>
+          <ClientAssetsSection
+            clientId={client.id}
+            assets={assets}
+            canWrite={assetWriteRoles.has(userRole)}
+            canViewArchived={canViewArchivedAssets}
+            showArchived={showArchivedAssets}
+            onToggleArchived={setShowArchivedAssets}
+            onChanged={refetch}
+          />
 
           <div className="border-b-0 px-5 py-5 sm:px-6">
             <button
