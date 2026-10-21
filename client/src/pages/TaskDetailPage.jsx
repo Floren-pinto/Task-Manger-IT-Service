@@ -10,14 +10,19 @@ import {
 } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTaskDetail } from "../hooks/useTaskDetail";
-import { useTask } from "../contexts/TaskContext";
 import { Loading } from "../components/Loading";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { updateStatusTask } from "../services/taskService";
-import { statusUpdateRoles } from "../constants/taskConstants";
+import {
+  statusUpdateRoles,
+  taskEditRoles,
+} from "../constants/taskConstants";
 import { useTaskActivity } from "../hooks/useTaskActivity";
+import { useTaskMutations } from "../hooks/useTaskMutations";
+import { emitTasksChanged } from "../utils/taskEvents";
 
+import { TaskEditDialog } from "../components/tasks/TaskEditDialog";
 import { TaskHeader } from "../components/tasks/TaskHeader";
 import { TaskStatusWorkflow } from "../components/tasks/TaskStatusWorkflow";
 import { TaskClientAssetSection } from "../components/tasks/TaskClientAssetSection";
@@ -50,20 +55,54 @@ export function TaskDetailPage() {
   const [statusUpdate, setStatusUpdate] = useState(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusError, setStatusError] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
   const returnTo = location.state?.backgroundLocation || "/dashboard";
   const taskId = params.taskId || params.id;
-  const { task, loading, error } = useTaskDetail(taskId);
+  const { task, loading, error, refetch } = useTaskDetail(taskId);
+  const { assignTask, createTaskAttachment, deleteTaskAttachment, loading: mutationsLoading } = useTaskMutations();
   const userRole =
-    typeof userProfile?.role === "string"
-      ? userProfile.role.toUpperCase()
-      : "";
+    typeof userProfile?.role === "string" ? userProfile.role.toUpperCase() : "";
   const canUpdateStatus = statusUpdateRoles.has(userRole);
-  const { updateTaskLocally } = useTask();
+  const canEdit = taskEditRoles.has(userRole);
   const { success: showSuccessToast, error: showErrorToast } = useToast();
 
   const handleBackdropClick = (event) => {
     if (event.target === event.currentTarget) {
       navigate(returnTo, { replace: true });
+    }
+  };
+
+  const handleAssignTask = async (userId) => {
+    try {
+      await assignTask(taskId, userId);
+      showSuccessToast("Teknisi berhasil ditugaskan.");
+      refetch();
+      emitTasksChanged();
+    } catch (err) {
+      showErrorToast(
+        err.response?.data?.message || err.message || "Gagal menetapkan tugas.",
+      );
+      throw err;
+    }
+  };
+
+  const handleUploadAttachment = async (file) => {
+    try {
+      await createTaskAttachment(taskId, file);
+      showSuccessToast("Lampiran tugas berhasil diunggah.");
+      refetch();
+    } catch (err) {
+      showErrorToast(err.message || "Gagal mengunggah lampiran.");
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId) => {
+    try {
+      await deleteTaskAttachment(taskId, attachmentId);
+      showSuccessToast("Lampiran tugas berhasil dihapus.");
+      refetch();
+    } catch (err) {
+      showErrorToast(err.message || "Gagal menghapus lampiran.");
     }
   };
 
@@ -144,9 +183,9 @@ export function TaskDetailPage() {
         status: nextStatus,
         selectedStatus: nextStatus,
       });
-      updateTaskLocally(taskId, { status: nextStatus });
 
       showSuccessToast("Status tugas berhasil diperbarui");
+      emitTasksChanged();
     } catch (err) {
       showErrorToast("Gagal memperbarui status tugas. Silakan coba lagi.");
       setStatusError(
@@ -176,6 +215,8 @@ export function TaskDetailPage() {
           taskId={taskId}
           displayedStatus={displayedStatus}
           returnTo={returnTo}
+          canEdit={canEdit}
+          onEdit={() => setEditOpen(true)}
         />
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">
@@ -197,7 +238,12 @@ export function TaskDetailPage() {
           </DetailSection>
 
           <DetailSection icon={UsersRound} title="Teknisi">
-            <TaskAssignmentsSection assignments={assignments} />
+            <TaskAssignmentsSection
+              assignments={assignments}
+              onAssign={handleAssignTask}
+              assigning={mutationsLoading}
+              canAssign={userRole !== "TECHNICIAN"}
+            />
           </DetailSection>
 
           <DetailSection icon={CheckCircle2} title="Checklist pekerjaan">
@@ -210,7 +256,12 @@ export function TaskDetailPage() {
           </DetailSection>
 
           <DetailSection icon={Paperclip} title="Bukti foto">
-            <TaskAttachmentsSection attachments={attachments} />
+            <TaskAttachmentsSection
+              attachments={attachments}
+              onUpload={handleUploadAttachment}
+              onDelete={handleDeleteAttachment}
+              uploading={mutationsLoading}
+            />
           </DetailSection>
 
           <DetailSection
@@ -236,6 +287,20 @@ export function TaskDetailPage() {
           onStatusSubmit={handleStatusSubmit}
         />
       </section>
+
+      <TaskEditDialog
+        open={editOpen}
+        task={task}
+        onClose={() => setEditOpen(false)}
+        onSaved={() => {
+          emitTasksChanged();
+          refetch();
+        }}
+        onDeleted={() => {
+          emitTasksChanged();
+          navigate(returnTo, { replace: true });
+        }}
+      />
     </div>
   );
 }

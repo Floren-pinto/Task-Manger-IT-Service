@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.schema.json",
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    },
+    "local-tools": {
+      "command": "node",
+      "args": ["./.opencode/mcp/my-server.js"],
+      "env": {
+        "NODE_ENV": "development"
+      }
+    }
+  }
+}
