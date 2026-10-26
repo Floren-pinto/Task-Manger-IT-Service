@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, LoaderCircle } from "lucide-react";
+import { AlertCircle, LoaderCircle, Plus } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { useUsers } from "../hooks/useUsers";
 import { useDivisions } from "../hooks/useDivisions";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { UserCardList } from "../components/users/UserCardList";
+import { UserCreateDialog } from "../components/users/UserCreateDialog";
 import { UserFilterBar } from "../components/users/UserFilterBar";
 import { UserTable } from "../components/users/UserTable";
 import { USER_ROLES } from "../constants/userConstants";
@@ -48,6 +49,8 @@ export default function UsersPage() {
   }, [division, includeDeleted, role, search, status]);
 
   const { users, loading, error, refetch } = useUsers(queryParams);
+
+  const [createOpen, setCreateOpen] = useState(false);
 
   const [searchInput, setSearchInput] = useState(search);
   const debouncedSearch = useDebouncedValue(searchInput, 350);
@@ -109,11 +112,21 @@ export default function UsersPage() {
             Kelola akun, role, divisi, dan status aktif pengguna.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-          {loading && users.length > 0 && (
-            <LoaderCircle className="h-4 w-4 animate-spin text-[#0EA5E9]" />
-          )}
-          <span>{users.length} pengguna</span>
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-2 text-xs font-medium text-slate-500">
+            {loading && users.length > 0 && (
+              <LoaderCircle className="h-4 w-4 animate-spin text-[#0EA5E9]" />
+            )}
+            {users.length} pengguna
+          </span>
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="inline-flex items-center gap-2 rounded-lg bg-[#0EA5E9] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0284C7]"
+          >
+            <Plus className="h-4 w-4" />
+            Tambah Pengguna
+          </button>
         </div>
       </div>
 
@@ -172,6 +185,12 @@ export default function UsersPage() {
           </>
         )}
       </div>
+
+      <UserCreateDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={refetch}
+      />
     </div>
   );
 }
