@@ -36,6 +36,7 @@ Access to data and operations is controlled according to each user's role and th
 - [x] Task Attachments
 - [ ] Service Reports
 - [x] Client Management
+- [x] User Management (SUPER_ADMIN only)
 - [x] Notification
 - [x] Dashboard
 
@@ -70,6 +71,8 @@ The `service_reports` table is also designed as immutable data. `MANAGER_DIVISIO
 
 The `clients` table provides role-based access where `MANAGER_DIVISION` and `SUPER_ADMIN` have full access including soft delete/restore, `STAFF` can create and edit active clients but cannot soft delete, and `TECHNICIAN` has read-only access. Assets follow the same visibility rule for archived rows: `STAFF`/`TECHNICIAN` only see active assets, while `SUPER_ADMIN`/`MANAGER_DIVISION` can also see archived assets.
 
+The `users` table only allows `SUPER_ADMIN` to create users and change role, division, or active status. Other roles can update only their own `name`/`email` (enforced by the `enforce_user_column_restrictions` trigger), and `MANAGER_DIVISION` can no longer update users in their division. Apply `server/supabase/sql/policies/09_users_policy.sql` after pulling the User Management changes.
+
 The dashboard summary uses the `get_dashboard_summary()` RPC. Apply `server/supabase/sql/functions/05_dashboard_functions.sql` in the Supabase SQL editor before using `GET /api/dashboard/summary`.
 
 ## Progress
@@ -94,6 +97,7 @@ The dashboard summary uses the `get_dashboard_summary()` RPC. Apply `server/supa
 ### In Progress
 
 - [x] Client Management
+- [x] User Management (SUPER_ADMIN only)
 
 ### Planned
 

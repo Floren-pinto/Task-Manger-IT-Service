@@ -31,6 +31,7 @@ const swaggerOptions = {
       { name: "Divisions", description: "Data divisi penanggung jawab" },
       { name: "Clients", description: "Data pelanggan dan lokasi layanan" },
       { name: "Assets", description: "Aset milik client" },
+      { name: "Users", description: "Manajemen akun pengguna (SUPER_ADMIN)" },
       { name: "Tasks", description: "Tiket dan penugasan layanan IT" },
       { name: "Dashboard", description: "Ringkasan operasional tiket" },
     ],
@@ -303,6 +304,209 @@ const swaggerOptions = {
                   schema: { $ref: "#/components/schemas/ErrorResponse" },
                 },
               },
+            },
+          },
+        },
+      },
+      "/api/users": {
+        get: {
+          tags: ["Users"],
+          summary: "Ambil daftar pengguna",
+          description:
+            "Hasil dibatasi RLS users. Mendukung pencarian nama/email, filter role/divisi/status, dan includeDeleted untuk arsip.",
+          parameters: [
+            { name: "search", in: "query", schema: { type: "string" } },
+            {
+              name: "role",
+              in: "query",
+              schema: {
+                type: "string",
+                enum: [
+                  "SUPER_ADMIN",
+                  "MANAGER_DIVISION",
+                  "STAFF",
+                  "TECHNICIAN",
+                ],
+              },
+            },
+            {
+              name: "division",
+              in: "query",
+              schema: { type: "string", format: "uuid" },
+            },
+            { name: "status", in: "query", schema: { type: "boolean" } },
+            {
+              name: "includeDeleted",
+              in: "query",
+              schema: { type: "boolean", default: false },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Daftar pengguna",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      success: { type: "boolean" },
+                      message: { type: "string" },
+                      data: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            id: { type: "string", format: "uuid" },
+                            name: { type: "string" },
+                            email: { type: "string", format: "email" },
+                            role: { type: "string" },
+                            is_active: { type: "boolean" },
+                            division_id: {
+                              type: "string",
+                              format: "uuid",
+                              nullable: true,
+                            },
+                            division: {
+                              type: "object",
+                              nullable: true,
+                              properties: {
+                                id: { type: "string", format: "uuid" },
+                                name: { type: "string" },
+                              },
+                            },
+                            deleted_at: {
+                              type: "string",
+                              format: "date-time",
+                              nullable: true,
+                            },
+                            created_at: {
+                              type: "string",
+                              format: "date-time",
+                            },
+                            updated_at: {
+                              type: "string",
+                              format: "date-time",
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            401: {
+              description: "Tidak terautentikasi",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+          },
+        },
+        post: {
+          tags: ["Users"],
+          summary: "Buat pengguna baru (SUPER_ADMIN)",
+          description:
+            "Membuat akun Supabase Auth lalu memperbarui profil users. Mengembalikan 503 bila SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi.",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["name", "email", "password", "role"],
+                  properties: {
+                    name: { type: "string", maxLength: 200 },
+                    email: { type: "string", format: "email" },
+                    password: { type: "string", minLength: 8 },
+                    role: {
+                      type: "string",
+                      enum: [
+                        "SUPER_ADMIN",
+                        "MANAGER_DIVISION",
+                        "STAFF",
+                        "TECHNICIAN",
+                      ],
+                    },
+                    divisionId: {
+                      type: "string",
+                      format: "uuid",
+                      nullable: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            201: { description: "Pengguna berhasil dibuat" },
+            400: { description: "Validasi gagal" },
+            403: { description: "Bukan SUPER_ADMIN" },
+            409: { description: "Email sudah terdaftar" },
+            500: { description: "Gagal membuat pengguna" },
+            503: {
+              description: "SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi",
+            },
+          },
+        },
+      },
+      "/api/users/{userId}": {
+        patch: {
+          tags: ["Users"],
+          summary: "Perbarui pengguna (SUPER_ADMIN)",
+          description:
+            "Body parsial. Email immutable. Perubahan status juga menyinkronkan ban/unban ke Supabase Auth.",
+          parameters: [
+            {
+              name: "userId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string", maxLength: 200 },
+                    role: {
+                      type: "string",
+                      enum: [
+                        "SUPER_ADMIN",
+                        "MANAGER_DIVISION",
+                        "STAFF",
+                        "TECHNICIAN",
+                      ],
+                    },
+                    divisionId: {
+                      type: "string",
+                      format: "uuid",
+                      nullable: true,
+                    },
+                    isActive: { type: "boolean" },
+                    deleted: { type: "boolean" },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: "Pengguna berhasil diperbarui" },
+            400: { description: "Validasi gagal" },
+            403: { description: "Tidak diizinkan" },
+            404: { description: "Pengguna tidak ditemukan" },
+            409: {
+              description:
+                "Email/divisi/SUPER_ADMIN terakhir tidak dapat diubah",
+            },
+            500: { description: "Gagal memperbarui pengguna" },
+            503: {
+              description: "SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi",
             },
           },
         },
