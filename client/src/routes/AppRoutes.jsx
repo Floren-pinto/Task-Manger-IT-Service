@@ -11,6 +11,8 @@ import LoginPage from "../pages/LoginPage";
 import DashboardPage from "../pages/DashboardPage";
 import GenericPage from "../pages/GenericPage";
 import TasksPage from "../pages/TasksPage";
+import ClientsPage from "../pages/ClientsPage";
+import { ClientDetailDrawer } from "../components/clients/ClientDetailDrawer";
 import { TaskDetailPage } from "../pages/TaskDetailPage";
 
 export default function AppRoutes() {
@@ -42,15 +44,8 @@ export default function AppRoutes() {
                 />
               }
             />
-            <Route
-              path="/clients"
-              element={
-                <GenericPage
-                  title="Clients & Locations"
-                  description="Daftar klien, gedung, dan stasiun kerja"
-                />
-              }
-            />
+            <Route path="/clients" element={<ClientsPage />} />
+            <Route path="/clients/:clientId" element={<ClientDetailDrawer />} />
             <Route
               path="/reports"
               element={
@@ -83,6 +78,7 @@ export default function AppRoutes() {
         <Routes>
           <Route element={<ProtectedRoute />}>
             <Route path="/tasks/:id" element={<TaskDetailPage />} />
+            <Route path="/clients/:clientId" element={<ClientDetailDrawer />} />
           </Route>
         </Routes>
       )}

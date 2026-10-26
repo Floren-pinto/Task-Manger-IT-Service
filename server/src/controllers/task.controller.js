@@ -465,7 +465,10 @@ export const createTaskAttachment = asyncHandler(async (req, res) => {
     await removeFile();
     if (error.code === "23503") throw new ApiError(400, "Invalid taskId");
     if (error.code === "42501")
-      throw new ApiError(403, "you are not allowed to create a new client");
+      throw new ApiError(
+        403,
+        "You are not allowed to upload attachments to this task",
+      );
     throw new ApiError(500, "Failed to create task attachment");
   }
 
@@ -528,6 +531,11 @@ export const deleteTaskAttachment = asyncHandler(async (req, res) => {
   if (error) {
     if (error.code === "PGRST116")
       throw new ApiError(404, "Task attachment not found");
+    if (error.code === "42501")
+      throw new ApiError(
+        403,
+        "You are not allowed to delete attachments from this task",
+      );
     throw new ApiError(500, "Failed to delete task attachment");
   }
 

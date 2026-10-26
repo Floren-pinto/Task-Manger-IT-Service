@@ -35,7 +35,7 @@ Access to data and operations is controlled according to each user's role and th
 - [x] Task Status History
 - [x] Task Attachments
 - [ ] Service Reports
-- [ ] Client Management
+- [x] Client Management
 - [x] Notification
 - [x] Dashboard
 
@@ -68,7 +68,7 @@ The `task_attachments` table controls access according to the task scope. Techni
 
 The `service_reports` table is also designed as immutable data. `MANAGER_DIVISION` and `TECHNICIAN` can read reports within the task scope, while reports cannot be updated or deleted.
 
-The `clients` table provides role-based access where `MANAGER_DIVISION` has full access with soft delete, `STAFF` has full access with soft delete, and `TECHNICIAN` has read-only access.
+The `clients` table provides role-based access where `MANAGER_DIVISION` and `SUPER_ADMIN` have full access including soft delete/restore, `STAFF` can create and edit active clients but cannot soft delete, and `TECHNICIAN` has read-only access. Assets follow the same visibility rule for archived rows: `STAFF`/`TECHNICIAN` only see active assets, while `SUPER_ADMIN`/`MANAGER_DIVISION` can also see archived assets.
 
 The dashboard summary uses the `get_dashboard_summary()` RPC. Apply `server/supabase/sql/functions/05_dashboard_functions.sql` in the Supabase SQL editor before using `GET /api/dashboard/summary`.
 
@@ -93,7 +93,7 @@ The dashboard summary uses the `get_dashboard_summary()` RPC. Apply `server/supa
 
 ### In Progress
 
-- [ ] Client Management
+- [x] Client Management
 
 ### Planned
 
