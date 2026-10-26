@@ -7,10 +7,18 @@ import {
   userStatusStyles,
 } from "../../constants/userConstants";
 import { formatDate } from "../../utils/formatters";
+import { UserActions } from "./UserActions";
 
 export function UserCardList({
   users = [],
   emptyMessage = "Belum ada pengguna untuk ditampilkan.",
+  currentUserId,
+  onEdit,
+  onDeactivate,
+  onActivate,
+  onArchive,
+  onRestore,
+  onResetPassword,
 }) {
   if (users.length === 0) {
     return (
@@ -72,9 +80,21 @@ export function UserCardList({
               </div>
             </dl>
 
-            <p className="m-0 mt-3 border-t border-slate-100 pt-3 text-[11px] text-slate-400">
-              Diperbarui {formatDate(user.updated_at, true)}
-            </p>
+            <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
+              <p className="m-0 text-[11px] text-slate-400">
+                Diperbarui {formatDate(user.updated_at, true)}
+              </p>
+              <UserActions
+                user={user}
+                isSelf={user.id === currentUserId}
+                onEdit={onEdit}
+                onDeactivate={onDeactivate}
+                onActivate={onActivate}
+                onArchive={onArchive}
+                onRestore={onRestore}
+                onResetPassword={onResetPassword}
+              />
+            </div>
           </article>
         );
       })}

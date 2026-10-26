@@ -6,10 +6,18 @@ import {
   userStatusStyles,
 } from "../../constants/userConstants";
 import { formatDate } from "../../utils/formatters";
+import { UserActions } from "./UserActions";
 
 export function UserTable({
   users = [],
   emptyMessage = "Belum ada pengguna untuk ditampilkan.",
+  currentUserId,
+  onEdit,
+  onDeactivate,
+  onActivate,
+  onArchive,
+  onRestore,
+  onResetPassword,
 }) {
   if (users.length === 0) {
     return (
@@ -29,6 +37,7 @@ export function UserTable({
             <th className="px-4 py-3 font-semibold">Division</th>
             <th className="px-4 py-3 font-semibold">Status</th>
             <th className="px-4 py-3 font-semibold">Updated</th>
+            <th className="px-4 py-3 text-right font-semibold">Aksi</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -67,6 +76,20 @@ export function UserTable({
                 </td>
                 <td className="whitespace-nowrap px-4 py-4 text-xs text-slate-600">
                   {formatDate(user.updated_at, true)}
+                </td>
+                <td className="whitespace-nowrap px-4 py-4">
+                  <div className="flex justify-end">
+                    <UserActions
+                      user={user}
+                      isSelf={user.id === currentUserId}
+                      onEdit={onEdit}
+                      onDeactivate={onDeactivate}
+                      onActivate={onActivate}
+                      onArchive={onArchive}
+                      onRestore={onRestore}
+                      onResetPassword={onResetPassword}
+                    />
+                  </div>
                 </td>
               </tr>
             );

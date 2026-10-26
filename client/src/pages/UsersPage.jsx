@@ -4,8 +4,14 @@ import { useSearchParams } from "react-router-dom";
 import { useUsers } from "../hooks/useUsers";
 import { useDivisions } from "../hooks/useDivisions";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { useUserMutations } from "../hooks/useUserMutations";
+import { useAuth } from "../contexts/AuthContext";
+import { useToast } from "../contexts/ToastContext";
+import { resetPassword } from "../services/userService";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { UserCardList } from "../components/users/UserCardList";
 import { UserCreateDialog } from "../components/users/UserCreateDialog";
+import { UserEditDialog } from "../components/users/UserEditDialog";
 import { UserFilterBar } from "../components/users/UserFilterBar";
 import { UserTable } from "../components/users/UserTable";
 import { USER_ROLES } from "../constants/userConstants";
@@ -16,6 +22,9 @@ const UUID_PATTERN =
 export default function UsersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { divisions } = useDivisions();
+  const { userProfile } = useAuth();
+  const toast = useToast();
+  const { updateUser, submitting } = useUserMutations();
 
   const search = (searchParams.get("search") || "").trim();
 
@@ -51,6 +60,10 @@ export default function UsersPage() {
   const { users, loading, error, refetch } = useUsers(queryParams);
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
+  const [deactivateTarget, setDeactivateTarget] = useState(null);
+  const [archiveTarget, setArchiveTarget] = useState(null);
+  const [restoreTarget, setRestoreTarget] = useState(null);
 
   const [searchInput, setSearchInput] = useState(search);
   const debouncedSearch = useDebouncedValue(searchInput, 350);
@@ -99,6 +112,64 @@ export default function UsersPage() {
   const handleClearFilters = () => {
     setSearchParams(new URLSearchParams());
     setSearchInput("");
+  };
+
+  const handleActivate = async (user) => {
+    try {
+      await updateUser(user.id, { isActive: true });
+      refetch();
+    } catch {
+      // Pesan error sudah ditampilkan oleh useUserMutations.
+    }
+  };
+
+  const handleConfirmDeactivate = async () => {
+    if (!deactivateTarget) return;
+
+    try {
+      await updateUser(deactivateTarget.id, { isActive: false });
+      setDeactivateTarget(null);
+      refetch();
+    } catch {
+      // Pesan error sudah ditampilkan oleh useUserMutations.
+    }
+  };
+
+  const handleConfirmArchive = async () => {
+    if (!archiveTarget) return;
+
+    try {
+      await updateUser(archiveTarget.id, { deleted: true });
+      setArchiveTarget(null);
+      refetch();
+    } catch {
+      // Pesan error sudah ditampilkan oleh useUserMutations.
+    }
+  };
+
+  const handleConfirmRestore = async () => {
+    if (!restoreTarget) return;
+
+    try {
+      await updateUser(restoreTarget.id, { deleted: false, isActive: true });
+      setRestoreTarget(null);
+      refetch();
+    } catch {
+      // Pesan error sudah ditampilkan oleh useUserMutations.
+    }
+  };
+
+  const handleResetPassword = async (user) => {
+    const { error: resetError } = await resetPassword(user.email);
+
+    if (resetError) {
+      toast.error("Gagal mengirim email reset password. Coba lagi nanti.");
+      return;
+    }
+
+    toast.success(
+      "Jika email terdaftar, tautan reset password telah dikirim.",
+    );
   };
 
   return (
@@ -180,8 +251,28 @@ export default function UsersPage() {
           </div>
         ) : (
           <>
-            <UserTable users={users} emptyMessage={emptyMessage} />
-            <UserCardList users={users} emptyMessage={emptyMessage} />
+            <UserTable
+              users={users}
+              emptyMessage={emptyMessage}
+              currentUserId={userProfile?.id}
+              onEdit={setEditTarget}
+              onDeactivate={setDeactivateTarget}
+              onActivate={handleActivate}
+              onArchive={setArchiveTarget}
+              onRestore={setRestoreTarget}
+              onResetPassword={handleResetPassword}
+            />
+            <UserCardList
+              users={users}
+              emptyMessage={emptyMessage}
+              currentUserId={userProfile?.id}
+              onEdit={setEditTarget}
+              onDeactivate={setDeactivateTarget}
+              onActivate={handleActivate}
+              onArchive={setArchiveTarget}
+              onRestore={setRestoreTarget}
+              onResetPassword={handleResetPassword}
+            />
           </>
         )}
       </div>
@@ -190,6 +281,44 @@ export default function UsersPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onCreated={refetch}
+      />
+
+      <UserEditDialog
+        open={Boolean(editTarget)}
+        user={editTarget}
+        onClose={() => setEditTarget(null)}
+        onSaved={refetch}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deactivateTarget)}
+        title="Nonaktifkan pengguna?"
+        description={`${deactivateTarget?.name || "Pengguna"} tidak akan bisa login atau memakai API sampai diaktifkan kembali.`}
+        confirmLabel="Nonaktifkan"
+        loading={submitting}
+        onConfirm={handleConfirmDeactivate}
+        onClose={() => setDeactivateTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(archiveTarget)}
+        title="Arsipkan pengguna?"
+        description={`${archiveTarget?.name || "Pengguna"} akan diarsipkan dan tidak bisa mengakses aplikasi. Riwayat tugas tetap tersimpan.`}
+        confirmLabel="Arsipkan"
+        loading={submitting}
+        onConfirm={handleConfirmArchive}
+        onClose={() => setArchiveTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(restoreTarget)}
+        title="Pulihkan pengguna?"
+        description={`${restoreTarget?.name || "Pengguna"} akan diaktifkan kembali dan bisa mengakses aplikasi.`}
+        confirmLabel="Pulihkan"
+        variant="default"
+        loading={submitting}
+        onConfirm={handleConfirmRestore}
+        onClose={() => setRestoreTarget(null)}
       />
     </div>
   );
