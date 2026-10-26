@@ -2,6 +2,7 @@
 -- users
 -- 
 -- SELECT POLICY
+DROP POLICY IF EXISTS "select" ON users;
 CREATE POLICY "select"
 ON users
 FOR SELECT
@@ -20,29 +21,21 @@ USING (
 );
 
 -- UPDATE POLICY
+-- Mutasi user selain profil sendiri hanya untuk SUPER_ADMIN.
+-- Update profil sendiri tetap dibatasi trigger enforce_user_column_restrictions
+-- (hanya name/email/updated_at).
 DROP POLICY IF EXISTS "update only own profile and super admin can update all" ON users;
+DROP POLICY IF EXISTS "update own profile, manager update division staff, super admin all" ON users;
 
-CREATE POLICY "update own profile, manager update division staff, super admin all"
+CREATE POLICY "update own profile or super admin"
 ON users
 FOR UPDATE
 TO authenticated
 USING (
     get_my_role() = 'SUPER_ADMIN'
     OR (id = auth.uid()::text AND deleted_at IS NULL)
-    OR (
-        get_my_role() = 'MANAGER_DIVISION'
-        AND division_id = get_my_division()
-        AND deleted_at IS NULL
-        AND role != 'SUPER_ADMIN' 
-    )
 )
 WITH CHECK (
     get_my_role() = 'SUPER_ADMIN'
     OR (id = auth.uid()::text AND deleted_at IS NULL)
-    OR (
-        get_my_role() = 'MANAGER_DIVISION'
-        AND division_id = get_my_division()
-        AND deleted_at IS NULL
-        AND role != 'SUPER_ADMIN'
-    )
 );
