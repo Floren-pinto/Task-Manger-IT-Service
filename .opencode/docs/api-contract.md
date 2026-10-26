@@ -101,25 +101,49 @@ Login/logout dilakukan **FE langsung ke Supabase Auth** (bukan endpoint Express)
 
 ---
 
-## 2. Users
+## 2. Users ✅
 
-### `GET /api/users` ✅
-- Visibility (RLS `users`): SUPER_ADMIN melihat semua; MANAGER_DIVISION melihat semua user non-SUPER_ADMIN yang belum soft-deleted; STAFF melihat diri sendiri + TECHNICIAN; TECHNICIAN hanya melihat dirinya sendiri.
+### `GET /api/users`
+- Akses: semua role terautentikasi, tetapi hasil dibatasi RLS `users`: SUPER_ADMIN melihat semua; MANAGER_DIVISION melihat semua user non-SUPER_ADMIN yang belum soft-deleted; STAFF melihat diri sendiri + TECHNICIAN; TECHNICIAN hanya dirinya sendiri.
 - Query:
-  - `role` → `Role`
+  - `search` → cari `name`/`email` (`ilike`); karakter `,()%"` disanitasi
+  - `role` → `Role` (case-insensitive)
   - `division` → UUID, dipetakan ke `division_id`
-  - `status` → boolean `is_active` (hasil `boolParser`); `status=true` memfilter user aktif, tetapi `status=false` **tidak memfilter** karena kode memakai `if (status)` (temuan #28); nilai selain `true`/`false` dibandingkan apa adanya
+  - `status` → boolean `is_active`; `status=true` aktif, `status=false` nonaktif
+  - `includeDeleted=true` → ikut menampilkan user arsip (efektif untuk SUPER_ADMIN)
 - 200: `data` = **array langsung** (tanpa pagination), urut `name` asc
 
 ```json
 [{ "id": "", "name": "", "email": "", "role": "", "is_active": true,
-   "division_id": "", "deleted_at": null, "created_at": "", "updated_at": "" }]
+   "division_id": "", "division": { "id": "", "name": "" },
+   "deleted_at": null, "created_at": "", "updated_at": "" }]
 ```
 
-- `users.deleted_at` sudah ada di schema dan ikut di-select.
-- 🐞 `testConnection()` mengecek keberadaan network interface, bukan konektivitas internet; jika false → 500 `"the internet is offline"` (temuan #26).
+- Temuan #26 (`testConnection`) dan #28 (`status=false` tidak memfilter) sudah diperbaiki.
+- `GET` tetap terbuka untuk semua role agar form task bisa memuat daftar teknisi.
 
-🔜 `POST` dan `PATCH /api/users` (FR-03, Super Admin; hapus = soft delete lewat PATCH). Desain: Bagian 7.6.
+### `POST /api/users` — hanya SUPER_ADMIN
+- Body: `name` (wajib), `email` (wajib, unik), `password` (wajib, min 8 karakter), `role` (wajib), `divisionId` (wajib untuk `TECHNICIAN`/`MANAGER_DIVISION`; boleh `null` untuk `SUPER_ADMIN`/`STAFF`).
+- Alur: validasi → cek divisi → `auth.admin.createUser({ email, password, email_confirm: true })` → update profil `users` (trigger `handle_new_auth_user` membuat baris default `TECHNICIAN`).
+- Kompensasi: jika update profil gagal → `auth.admin.deleteUser(id)`. Password tidak pernah dikembalikan atau di-log.
+- 201: `data` = profil user (bentuk sama dengan `GET`), message `"User created successfully"`.
+- Error: 400 · 403 (bukan SUPER_ADMIN) · 409 (email terdaftar) · 500 · 503 (service role key belum dikonfigurasi).
+
+### `PATCH /api/users/:userId` — hanya SUPER_ADMIN
+- Body parsial (minimal satu): `name`, `role`, `divisionId` (nullable), `isActive` (boolean), `deleted` (boolean). `email` immutable → 400.
+- Aturan:
+  1. `role`/`divisionId` mengikuti validasi `POST`.
+  2. Mengubah `role`, `isActive`, atau `deleted` milik sendiri → 400.
+  3. Menonaktifkan/menurunkan SUPER_ADMIN aktif terakhir → 409.
+  4. `divisionId` berubah sementara user masih punya task aktif (`PENDING`/`IN_PROGRESS`/`ON_HOLD`) → 409.
+  5. `isActive: false` atau `deleted: true` → akun di-ban di Supabase Auth. `deleted: true` mengisi `deleted_at` + `is_active=false`. Restore (`deleted: false`) mengosongkan `deleted_at`; aktifkan eksplisit dengan `isActive: true`.
+  6. `42501`/trigger → 403; `PGRST116` → 404.
+- 200: `data` = profil user, message `"User updated successfully"`.
+- Error: 400 · 403 · 404 · 409 · 500 · 503.
+
+**Tidak ada `DELETE /api/users`.** Hapus permanen mustahil karena relasi `onDelete: Restrict`; hapus = soft delete lewat `PATCH { deleted: true }` (D9).
+
+**Policy SQL:** `server/supabase/sql/policies/09_users_policy.sql` — UPDATE hanya SUPER_ADMIN atau profil sendiri (`name`/`email` dibatasi trigger); MANAGER_DIVISION tidak lagi bisa mengubah `is_active`.
 
 ---
 
@@ -519,48 +543,16 @@ Report bersifat **immutable** (RLS tidak punya policy UPDATE/DELETE). Koreksi = 
 
 Catatan: embed `reports` di `GET /api/tasks/:taskId` saat ini ikut membawa `snapshot_data` (payload berat) → usul dihapus dari embed (temuan #16). Export PDF/CSV (FR-42) masuk fase lanjut; untuk MVP FE bisa merender dari `snapshot_data` dan mencetak dengan `window.print()`.
 
-### 7.6 Users 🔜 🔒
+### 7.6 Users ✅ 🔒
 
-#### Query `GET /api/users`
+Kontrak aktual ada di **Bagian 2**. Ringkasan keputusan implementasi:
 
-Status: endpoint sudah ada; kontrak aktual ada di **Bagian 2**. Implementasi memakai `role`, `division`, dan `status`; belum ada `divisionId`, `isActive`, `search`, atau `includeDeleted`.
-
-Target pengembangan berikutnya (belum diimplementasikan): `search` (`name`/`email`) dan `includeDeleted` untuk SUPER_ADMIN. Tetap array tanpa pagination; tambahkan pagination bila jumlah user diperkirakan > ~100.
-
-#### `POST /api/users` — hanya SUPER_ADMIN
-
-- Body:
-
-| Field | Tipe | Wajib | Catatan |
-|---|---|---|---|
-| `name` | string | ✓ | |
-| `email` | string | ✓ | format email, unik |
-| `password` | string | ✓ | min 8 karakter; **tidak pernah dikembalikan atau di-log** |
-| `role` | `Role` | ✓ | |
-| `divisionId` | uuid / `null` | ✓ untuk `TECHNICIAN` & `MANAGER_DIVISION` | `SUPER_ADMIN` & `STAFF`: boleh `null` |
-
-- Alur 🔒:
-  1. Validasi input; pastikan `divisionId` ada.
-  2. `supabaseAdmin.auth.admin.createUser({ email, password, email_confirm: true })`.
-  3. Insert ke `users` dengan `id` = id user Auth, `role`, `division_id`.
-  4. Jika langkah 3 gagal → compensating: `supabaseAdmin.auth.admin.deleteUser(id)`; jika itu pun gagal, log dan kembalikan error aslinya.
-- 201: `data` = `{ id, name, email, role, is_active, division_id, created_at, updated_at }`, message `"User created"`
-- Error: 400 · 403 · 409 (email sudah terdaftar) · 500
-
-#### `PATCH /api/users/:userId` — hanya SUPER_ADMIN
-
-- Body parsial (minimal satu): `name`, `role`, `divisionId` (nullable), `isActive` (boolean), `deleted` (boolean).
-- Email immutable (MVP). Reset password = alur FR-05 via Supabase (`resetPasswordForEmail` dari FE), bukan endpoint ini.
-- Aturan 🔒:
-  1. Mengubah **diri sendiri** pada `role`, `isActive`, atau `deleted` → 400 (cegah lockout).
-  2. `role`/`divisionId` mengikuti aturan validasi `POST`.
-  3. `divisionId` berubah sementara user punya task aktif (`PENDING`/`IN_PROGRESS`/`ON_HOLD`) → 409.
-  4. `isActive: false` atau `deleted: true` → server juga menonaktifkan akun di Supabase Auth (`updateUserById` dengan ban). `deleted: true` mengisi `deleted_at` dan `is_active = false`. Restore (`deleted: false`) mengosongkan `deleted_at`; `isActive` harus diaktifkan eksplisit.
-  5. Token lama tetap valid sampai kedaluwarsa, jadi pemutus akses yang sebenarnya adalah middleware P4.
-- 200: `data` = profil user (field sama dengan `POST`), message `"User updated"`
-- Error: 400 · 403 · 404 · 409
-
-**Tidak ada `DELETE /api/users`.** Hapus permanen mustahil: `tasks.created_by_id`, `task_status_history.user_id`, `task_attachments.uploaded_by_id`, dan `service_reports.created_by_id` memakai `onDelete: Restrict`. Hapus = soft delete lewat `PATCH { deleted: true }` (D9).
+- `POST /api/users` dan `PATCH /api/users/:userId` hanya SUPER_ADMIN (`requireSuperAdmin`); `GET /api/users` tetap untuk semua role dengan pembatasan RLS.
+- Create memakai Supabase Auth Admin + kompensasi `deleteUser` bila update profil gagal. Tanpa `SUPABASE_SERVICE_ROLE_KEY`, create/ban/unban mengembalikan **503**.
+- PATCH menolak perubahan role/status milik sendiri, menolak menonaktifkan SUPER_ADMIN aktif terakhir, dan menolak pindah divisi bila user masih punya task aktif.
+- Email immutable pada MVP. Reset password = `resetPasswordForEmail` dari FE (FR-05), bukan endpoint ini.
+- `users` UPDATE policy dipersempit ke SUPER_ADMIN atau profil sendiri; MANAGER_DIVISION tidak lagi bisa mengubah user lain (termasuk `is_active`).
+- Tidak ada `DELETE /api/users`; hapus = soft delete `PATCH { deleted: true }` (D9).
 
 ### 7.7 Teams & members 🔜
 

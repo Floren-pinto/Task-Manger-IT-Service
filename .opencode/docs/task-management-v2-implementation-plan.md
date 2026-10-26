@@ -28,12 +28,12 @@ Dokumen ini **hanya berisi rencana**. Tidak ada perubahan kode yang boleh dilaku
 
 Menyelesaikan empat modul yang masih menjadi gap utama aplikasi:
 
-| Modul | Gap saat ini | Target |
-|---|---|---|
-| Client Management | `/clients` masih `GenericPage`; backend client/assets punya beberapa bug | Halaman client + asset yang bisa dipakai operasional |
-| User Management | Baru ada `GET /api/users`; belum ada create/update/deactivate | Admin bisa mengelola akun sesuai RBAC |
-| Notifikasi | Backend ada, tetapi UI bell masih dummy; `isRead=false` tidak bekerja | Notifikasi in-app nyata dan aman |
-| Riwayat Servis | Belum ada service report dan halaman riwayat | Riwayat servis per client/asset + service report + export CSV |
+| Modul             | Gap saat ini                                                             | Target                                                        |
+| ----------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| Client Management | `/clients` masih `GenericPage`; backend client/assets punya beberapa bug | Halaman client + asset yang bisa dipakai operasional          |
+| User Management   | Baru ada `GET /api/users`; belum ada create/update/deactivate            | Admin bisa mengelola akun sesuai RBAC                         |
+| Notifikasi        | Backend ada, tetapi UI bell masih dummy; `isRead=false` tidak bekerja    | Notifikasi in-app nyata dan aman                              |
+| Riwayat Servis    | Belum ada service report dan halaman riwayat                             | Riwayat servis per client/asset + service report + export CSV |
 
 ### 1.2 Yang termasuk
 
@@ -108,12 +108,12 @@ docs(...): ...
 
 ### 2.3 Prinsip keamanan
 
-| Layer | Aturan |
-|---|---|
-| RLS | Sumber kebenaran utama untuk SELECT/INSERT/UPDATE/DELETE |
-| Trigger | Sumber kebenaran untuk pembatasan kolom |
-| Express | Validasi input, orkestrasi multi-tabel, dan guard untuk operasi privileged |
-| Frontend | Hanya menyembunyikan aksi untuk UX; bukan pengaman utama |
+| Layer    | Aturan                                                                     |
+| -------- | -------------------------------------------------------------------------- |
+| RLS      | Sumber kebenaran utama untuk SELECT/INSERT/UPDATE/DELETE                   |
+| Trigger  | Sumber kebenaran untuk pembatasan kolom                                    |
+| Express  | Validasi input, orkestrasi multi-tabel, dan guard untuk operasi privileged |
+| Frontend | Hanya menyembunyikan aksi untuk UX; bukan pengaman utama                   |
 
 Pengecualian penting:
 
@@ -150,41 +150,41 @@ Ambil pola yang sudah ada di modul Tasks:
 
 ### 3.2 Temuan yang harus diselesaikan
 
-| Temuan | Diselesaikan di |
-|---|---|
-| #4 `deleted_at` tidak dikembalikan di list/detail client & asset | Sesi 1 |
-| #5 `getClientDetail` memilih `assets.description` yang tidak ada | Sesi 1 |
-| #6 `/notifications` belum memakai `attachProfile` | Sesi 3 |
-| #16 detail task membawa `reports[].snapshot_data` | Sesi 4 |
-| #17 `tasks` belum punya `completed_at` | Sesi 4 |
-| #18 `isRead=false` tidak memfilter | Sesi 3 |
-| #19 asset soft-deleted terlihat semua role | Sesi 1 |
-| #20 `updateClient` selalu mengirim `email` | Sesi 1 |
-| #21 pesan 42501 attachment salah konteks | Sesi 1 |
-| #26 `testConnection` di `GET /users` | Sesi 2 |
-| #27 pesan validasi `POST /clients` | Sesi 1 |
-| #28 `status=false` tidak memfilter user | Sesi 2 |
-| #29 `22P02` selalu dipetakan ke priority | Sesi 1 |
-| #30 cek `data.length` sebelum `error` | Sesi 1 |
+| Temuan                                                           | Diselesaikan di |
+| ---------------------------------------------------------------- | --------------- |
+| #4 `deleted_at` tidak dikembalikan di list/detail client & asset | Sesi 1          |
+| #5 `getClientDetail` memilih `assets.description` yang tidak ada | Sesi 1          |
+| #6 `/notifications` belum memakai `attachProfile`                | Sesi 3          |
+| #16 detail task membawa `reports[].snapshot_data`                | Sesi 4          |
+| #17 `tasks` belum punya `completed_at`                           | Sesi 4          |
+| #18 `isRead=false` tidak memfilter                               | Sesi 3          |
+| #19 asset soft-deleted terlihat semua role                       | Sesi 1          |
+| #20 `updateClient` selalu mengirim `email`                       | Sesi 1          |
+| #21 pesan 42501 attachment salah konteks                         | Sesi 1          |
+| #26 `testConnection` di `GET /users`                             | Sesi 2          |
+| #27 pesan validasi `POST /clients`                               | Sesi 1          |
+| #28 `status=false` tidak memfilter user                          | Sesi 2          |
+| #29 `22P02` selalu dipetakan ke priority                         | Sesi 1          |
+| #30 cek `data.length` sebelum `error`                            | Sesi 1          |
 
 ---
 
 ## 4. Matriks RBAC Ringkas untuk Empat Sesi
 
-| Fitur | SUPER_ADMIN | MANAGER_DIVISION | STAFF | TECHNICIAN |
-|---|---|---|---|---|
-| Lihat clients | Semua | Semua | Aktif | Aktif |
-| Tambah/edit client | Ya | Ya | Ya | Tidak |
-| Soft delete/restore client | Ya | Ya | Tidak | Tidak |
-| Lihat assets | Semua | Semua | Aktif | Aktif |
-| Tulis/soft delete asset | Ya | Ya | Ya | Ya (sesuai RLS existing) |
-| Lihat users | Semua | Non-SUPER_ADMIN | Diri + TECHNICIAN | Diri sendiri |
-| Kelola users | Ya | Tidak | Tidak | Tidak |
-| Lihat notifikasi | Milik sendiri | Milik sendiri | Milik sendiri | Milik sendiri |
-| Tandai notifikasi | Milik sendiri | Milik sendiri | Milik sendiri | Milik sendiri |
-| Buat service report | Ya | Ya | Tidak | Ya, divisi task |
-| Lihat riwayat servis | Semua | Semua | Semua task selesai yang terlihat | Divisi sendiri |
-| Export riwayat servis | Ya | Ya | Ya | Ya, divisi sendiri |
+| Fitur                      | SUPER_ADMIN   | MANAGER_DIVISION | STAFF                            | TECHNICIAN               |
+| -------------------------- | ------------- | ---------------- | -------------------------------- | ------------------------ |
+| Lihat clients              | Semua         | Semua            | Aktif                            | Aktif                    |
+| Tambah/edit client         | Ya            | Ya               | Ya                               | Tidak                    |
+| Soft delete/restore client | Ya            | Ya               | Tidak                            | Tidak                    |
+| Lihat assets               | Semua         | Semua            | Aktif                            | Aktif                    |
+| Tulis/soft delete asset    | Ya            | Ya               | Ya                               | Ya (sesuai RLS existing) |
+| Lihat users                | Semua         | Non-SUPER_ADMIN  | Diri + TECHNICIAN                | Diri sendiri             |
+| Kelola users               | Ya            | Tidak            | Tidak                            | Tidak                    |
+| Lihat notifikasi           | Milik sendiri | Milik sendiri    | Milik sendiri                    | Milik sendiri            |
+| Tandai notifikasi          | Milik sendiri | Milik sendiri    | Milik sendiri                    | Milik sendiri            |
+| Buat service report        | Ya            | Ya               | Tidak                            | Ya, divisi task          |
+| Lihat riwayat servis       | Semua         | Semua            | Semua task selesai yang terlihat | Divisi sendiri           |
+| Export riwayat servis      | Ya            | Ya               | Ya                               | Ya, divisi sendiri       |
 
 Catatan:
 
@@ -482,23 +482,23 @@ Policy INSERT/UPDATE tetap `TRUE` sesuai keputusan desain “assets boleh dituli
 `clientService.js`:
 
 ```js
-getClients(params)       // sudah ada; pertahankan fallback 404 → empty page
-getClientById(clientId)  // sudah ada
-createClient(payload)
-updateClient(clientId, payload)
-deleteClient(clientId)   // PATCH { deleted: true }
-restoreClient(clientId)  // PATCH { deleted: false }
+getClients(params); // sudah ada; pertahankan fallback 404 → empty page
+getClientById(clientId); // sudah ada
+createClient(payload);
+updateClient(clientId, payload);
+deleteClient(clientId); // PATCH { deleted: true }
+restoreClient(clientId); // PATCH { deleted: false }
 ```
 
 `assetService.js`:
 
 ```js
-getAssets(params)        // sudah ada
-getAssetById(assetId)
-createAsset(payload)
-updateAsset(assetId, payload)
-deleteAsset(assetId)
-restoreAsset(assetId)
+getAssets(params); // sudah ada
+getAssetById(assetId);
+createAsset(payload);
+updateAsset(assetId, payload);
+deleteAsset(assetId);
+restoreAsset(assetId);
 ```
 
 ### Hook
@@ -595,15 +595,15 @@ Filter bar:
 
 Tabel desktop:
 
-| Kolom | Isi |
-|---|---|
-| Client | nama + email |
-| Contact | contact |
-| Service | service_type |
-| Address | alamat, truncate |
-| Status | badge aktif/arsip |
-| Updated | `formatDate(updated_at)` |
-| Aksi | detail/edit/restore sesuai role |
+| Kolom   | Isi                             |
+| ------- | ------------------------------- |
+| Client  | nama + email                    |
+| Contact | contact                         |
+| Service | service_type                    |
+| Address | alamat, truncate                |
+| Status  | badge aktif/arsip               |
+| Updated | `formatDate(updated_at)`        |
+| Aksi    | detail/edit/restore sesuai role |
 
 Card mobile:
 
@@ -681,13 +681,13 @@ Isi:
 
 Field:
 
-| Field | Wajib | Catatan |
-|---|---|---|
-| `name` | Ya | max 200 karakter |
-| `contact` | Ya | telepon/WA |
-| `email` | Tidak | kosong → `null` |
-| `address` | Ya | textarea |
-| `serviceType` | Ya | select atau text |
+| Field         | Wajib | Catatan          |
+| ------------- | ----- | ---------------- |
+| `name`        | Ya    | max 200 karakter |
+| `contact`     | Ya    | telepon/WA       |
+| `email`       | Tidak | kosong → `null`  |
+| `address`     | Ya    | textarea         |
+| `serviceType` | Ya    | select atau text |
 
 Validasi:
 
@@ -744,10 +744,10 @@ Section `Assets`:
 
 Form asset:
 
-| Field | Wajib |
-|---|---|
-| `name` | Ya |
-| `type` | Ya |
+| Field          | Wajib |
+| -------------- | ----- |
+| `name`         | Ya    |
+| `type`         | Ya    |
 | `serialNumber` | Tidak |
 
 `clientId` selalu dari client yang sedang dibuka; jangan menampilkan input client.
@@ -897,13 +897,13 @@ Hanya SUPER_ADMIN.
 
 Body:
 
-| Field | Tipe | Wajib | Catatan |
-|---|---|---|---|
-| `name` | string | Ya | trim, max 200 |
-| `email` | string | Ya | format email, unik |
-| `password` | string | Ya | min 8; tidak pernah dikembalikan/di-log |
-| `role` | Role | Ya | `SUPER_ADMIN`/`MANAGER_DIVISION`/`STAFF`/`TECHNICIAN` |
-| `divisionId` | uuid/null | Ya untuk TECHNICIAN & MANAGER_DIVISION | STAFF/SUPER_ADMIN boleh null |
+| Field        | Tipe      | Wajib                                  | Catatan                                               |
+| ------------ | --------- | -------------------------------------- | ----------------------------------------------------- |
+| `name`       | string    | Ya                                     | trim, max 200                                         |
+| `email`      | string    | Ya                                     | format email, unik                                    |
+| `password`   | string    | Ya                                     | min 8; tidak pernah dikembalikan/di-log               |
+| `role`       | Role      | Ya                                     | `SUPER_ADMIN`/`MANAGER_DIVISION`/`STAFF`/`TECHNICIAN` |
+| `divisionId` | uuid/null | Ya untuk TECHNICIAN & MANAGER_DIVISION | STAFF/SUPER_ADMIN boleh null                          |
 
 Alur:
 
@@ -1040,10 +1040,10 @@ Perubahan ini **wajib direview** karena mengubah perilaku lama. Jika product tet
 ### Service
 
 ```js
-getUsers(params)
-getUserById(userId)          // opsional
-createUser(payload)
-updateUser(userId, payload)
+getUsers(params);
+getUserById(userId); // opsional
+createUser(payload);
+updateUser(userId, payload);
 ```
 
 `resetPassword(email)` memakai `supabase.auth.resetPasswordForEmail` di service auth atau user service, bukan API Express.
@@ -1125,14 +1125,14 @@ Filter:
 
 Tabel desktop:
 
-| Kolom | Isi |
-|---|---|
-| User | nama + email |
-| Role | badge role |
-| Division | nama divisi / `-` |
-| Status | aktif / nonaktif / arsip |
-| Updated | tanggal |
-| Aksi | edit, aktif/nonaktif, restore |
+| Kolom    | Isi                           |
+| -------- | ----------------------------- |
+| User     | nama + email                  |
+| Role     | badge role                    |
+| Division | nama divisi / `-`             |
+| Status   | aktif / nonaktif / arsip      |
+| Updated  | tanggal                       |
+| Aksi     | edit, aktif/nonaktif, restore |
 
 Card mobile:
 
@@ -1416,10 +1416,10 @@ Tujuan: user nonaktif/soft-deleted langsung `403`.
 ### Service
 
 ```js
-getNotifications(params)
-getUnreadCount()
-markNotificationRead(id)
-markAllNotificationsRead()
+getNotifications(params);
+getUnreadCount();
+markNotificationRead(id);
+markAllNotificationsRead();
 ```
 
 ### Hook list
@@ -1800,11 +1800,11 @@ GET  /api/tasks/:taskId/reports/:reportId
 
 ### Body create
 
-| Field | Tipe | Wajib | Batas |
-|---|---|---|---|
-| `summary` | string | Ya | 2000 |
-| `actionTaken` | string | Ya | 2000 |
-| `notes` | string/null | Tidak | 2000 |
+| Field         | Tipe        | Wajib | Batas |
+| ------------- | ----------- | ----- | ----- |
+| `summary`     | string      | Ya    | 2000  |
+| `actionTaken` | string      | Ya    | 2000  |
+| `notes`       | string/null | Tidak | 2000  |
 
 - `snapshotData` dari client → `400`.
 - `summary`/`actionTaken` di-trim.
@@ -1847,9 +1847,7 @@ GET  /api/tasks/:taskId/reports/:reportId
     "serial_number": null,
     "type": ""
   },
-  "technicians": [
-    { "id": "", "name": "", "email": "" }
-  ],
+  "technicians": [{ "id": "", "name": "", "email": "" }],
   "status_history": [
     {
       "old_status": "",
@@ -2009,9 +2007,7 @@ Response:
         "type": "..."
       },
       "division": { "id": "...", "name": "..." },
-      "technicians": [
-        { "id": "...", "name": "...", "email": "..." }
-      ]
+      "technicians": [{ "id": "...", "name": "...", "email": "..." }]
     }
   ],
   "pagination": {
@@ -2181,17 +2177,17 @@ Validasi:
 `serviceHistoryService.js`:
 
 ```js
-getServiceHistory(params)
-exportServiceHistory(params) // responseType: "blob"
+getServiceHistory(params);
+exportServiceHistory(params); // responseType: "blob"
 ```
 
 `serviceReportService.js`:
 
 ```js
-getTaskReports(taskId)
-createTaskReport(taskId, payload)
-getTaskReport(taskId, reportId)
-getServiceReport(reportId)
+getTaskReports(taskId);
+createTaskReport(taskId, payload);
+getTaskReport(taskId, reportId);
+getServiceReport(reportId);
 ```
 
 ### Route
@@ -2220,16 +2216,16 @@ Filter:
 
 Tabel desktop:
 
-| Kolom | Isi |
-|---|---|
-| Task | ID + title |
-| Client | name |
-| Asset | name/type |
-| Division | name |
-| Technicians | names |
-| Completed | `completed_at` |
-| Report | badge ada/tidak |
-| Aksi | lihat tiket, lihat report, cetak |
+| Kolom       | Isi                              |
+| ----------- | -------------------------------- |
+| Task        | ID + title                       |
+| Client      | name                             |
+| Asset       | name/type                        |
+| Division    | name                             |
+| Technicians | names                            |
+| Completed   | `completed_at`                   |
+| Report      | badge ada/tidak                  |
+| Aksi        | lihat tiket, lihat report, cetak |
 
 Card mobile:
 
@@ -2362,18 +2358,18 @@ Jalankan setelah setiap sesi dan sekali lagi sebelum merge ke `main`.
 
 # 7. Keputusan yang Perlu Dikonfirmasi Sebelum Implementasi
 
-| # | Keputusan | Default rencana | Dampak |
-|---|---|---|---|
-| K1 | User management hanya SUPER_ADMIN? | Ya | Perlu memperketat policy users; manager kehilangan akses update `is_active` |
-| K2 | Assets tetap bisa ditulis semua role? | Ya, ikuti RLS existing | Technician bisa menambah/edit asset |
-| K3 | Service report boleh lebih dari satu per task? | Ya, immutable | Koreksi dilakukan dengan report baru |
-| K4 | Service report hanya untuk task COMPLETED? | Ya | Task ON_HOLD/CANCELLED tidak bisa report |
-| K5 | `/reports` diganti menjadi Service History? | Ya, redirect | SLA Reports menjadi future work |
-| K6 | Client detail tidak lagi mengembalikan `tasks`? | Ya | Riwayat memakai endpoint service history |
-| K7 | Deadline reminder otomatis? | Tidak termasuk | Butuh scheduler terpisah |
-| K8 | Export PDF? | Tidak termasuk | CSV dulu |
-| K9 | Hard delete user? | Tidak | Soft delete + ban Auth |
-| K10 | `completed_at` ditambahkan? | Ya | Perlu migration + backfill |
+| #   | Keputusan                                       | Default rencana        | Dampak                                                                      |
+| --- | ----------------------------------------------- | ---------------------- | --------------------------------------------------------------------------- |
+| K1  | User management hanya SUPER_ADMIN?              | Ya                     | Perlu memperketat policy users; manager kehilangan akses update `is_active` |
+| K2  | Assets tetap bisa ditulis semua role?           | Ya, ikuti RLS existing | Technician bisa menambah/edit asset                                         |
+| K3  | Service report boleh lebih dari satu per task?  | Ya, immutable          | Koreksi dilakukan dengan report baru                                        |
+| K4  | Service report hanya untuk task COMPLETED?      | Ya                     | Task ON_HOLD/CANCELLED tidak bisa report                                    |
+| K5  | `/reports` diganti menjadi Service History?     | Ya, redirect           | SLA Reports menjadi future work                                             |
+| K6  | Client detail tidak lagi mengembalikan `tasks`? | Ya                     | Riwayat memakai endpoint service history                                    |
+| K7  | Deadline reminder otomatis?                     | Tidak termasuk         | Butuh scheduler terpisah                                                    |
+| K8  | Export PDF?                                     | Tidak termasuk         | CSV dulu                                                                    |
+| K9  | Hard delete user?                               | Tidak                  | Soft delete + ban Auth                                                      |
+| K10 | `completed_at` ditambahkan?                     | Ya                     | Perlu migration + backfill                                                  |
 
 Jika ada keputusan yang berbeda, ubah dokumen ini sebelum implementasi dimulai.
 
@@ -2381,18 +2377,18 @@ Jika ada keputusan yang berbeda, ubah dokumen ini sebelum implementasi dimulai.
 
 # 8. Risiko dan Mitigasi
 
-| Risiko | Mitigasi |
-|---|---|
-| Perubahan policy users memblokir manager | Review manual; siapkan rollback SQL |
-| Service role key tidak tersedia | Endpoint create/ban mengembalikan `503`, bukan crash |
-| Realtime publication belum aktif | Fallback polling 60 detik + dokumentasi SQL |
-| Backfill `completed_at` salah | Ambil history COMPLETED terakhir; verifikasi count |
-| Snapshot report membocorkan data | Dibuat dari query RLS; jangan terima dari client |
-| CSV injection | Prefix formula characters; escape quote |
-| Client detail berubah dan merusak TaskCreateDialog | Pastikan `assets` tetap ada; uji create task |
-| `useUsers` berubah dan merusak filter teknisi | Pertahankan response array; uji TasksPage |
-| Perubahan navigasi mobile | Uji 375px dan role SUPER_ADMIN/non-admin |
-| Duplikasi UI | Gunakan shared `DataPagination`, `ConfirmDialog`, `FormField` |
+| Risiko                                             | Mitigasi                                                      |
+| -------------------------------------------------- | ------------------------------------------------------------- |
+| Perubahan policy users memblokir manager           | Review manual; siapkan rollback SQL                           |
+| Service role key tidak tersedia                    | Endpoint create/ban mengembalikan `503`, bukan crash          |
+| Realtime publication belum aktif                   | Fallback polling 60 detik + dokumentasi SQL                   |
+| Backfill `completed_at` salah                      | Ambil history COMPLETED terakhir; verifikasi count            |
+| Snapshot report membocorkan data                   | Dibuat dari query RLS; jangan terima dari client              |
+| CSV injection                                      | Prefix formula characters; escape quote                       |
+| Client detail berubah dan merusak TaskCreateDialog | Pastikan `assets` tetap ada; uji create task                  |
+| `useUsers` berubah dan merusak filter teknisi      | Pertahankan response array; uji TasksPage                     |
+| Perubahan navigasi mobile                          | Uji 375px dan role SUPER_ADMIN/non-admin                      |
+| Duplikasi UI                                       | Gunakan shared `DataPagination`, `ConfirmDialog`, `FormField` |
 
 ---
 
@@ -2454,6 +2450,6 @@ Jika ada keputusan yang berbeda, ubah dokumen ini sebelum implementasi dimulai.
 
 # 11. Changelog
 
-| Versi | Tanggal | Perubahan |
-|---|---|---|
-| 1.0 | 2026-10-21 | Rencana awal empat sesi: client management, user management, notifikasi, riwayat servis; stage, RBAC, UI, keamanan, verifikasi, dan commit |
+| Versi | Tanggal    | Perubahan                                                                                                                                  |
+| ----- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1.0   | 2026-10-21 | Rencana awal empat sesi: client management, user management, notifikasi, riwayat servis; stage, RBAC, UI, keamanan, verifikasi, dan commit |

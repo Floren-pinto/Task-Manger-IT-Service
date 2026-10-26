@@ -1,6 +1,6 @@
 import React from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { ProtectedRoute, PublicRoute } from "./RouteGuards";
+import { ProtectedRoute, PublicRoute, AdminRoute } from "./RouteGuards";
 
 // Layouts
 import PublicLayout from "../layouts/PublicLayout";
@@ -12,6 +12,7 @@ import DashboardPage from "../pages/DashboardPage";
 import GenericPage from "../pages/GenericPage";
 import TasksPage from "../pages/TasksPage";
 import ClientsPage from "../pages/ClientsPage";
+import UsersPage from "../pages/UsersPage";
 import { ClientDetailDrawer } from "../components/clients/ClientDetailDrawer";
 import { TaskDetailPage } from "../pages/TaskDetailPage";
 
@@ -46,6 +47,9 @@ export default function AppRoutes() {
             />
             <Route path="/clients" element={<ClientsPage />} />
             <Route path="/clients/:clientId" element={<ClientDetailDrawer />} />
+            <Route element={<AdminRoute />}>
+              <Route path="/users" element={<UsersPage />} />
+            </Route>
             <Route
               path="/reports"
               element={
