@@ -5,6 +5,7 @@ import {
   Ticket,
   Network,
   Users,
+  UserCog,
   BarChart3,
   LogOut,
 } from "lucide-react";
@@ -16,13 +17,23 @@ const navigationLinks = [
   { name: "Tasks & Tickets", path: "/tasks", icon: Ticket },
   { name: "Divisions", path: "/divisions", icon: Network },
   { name: "Clients", path: "/clients", icon: Users },
+  {
+    name: "Users",
+    path: "/users",
+    icon: UserCog,
+    roles: ["SUPER_ADMIN"],
+  },
   { name: "SLA Reports", path: "/reports", icon: BarChart3 },
 ];
 
 export default function Sidebar() {
-  const { user, signOut } = useAuth();
+  const { user, userProfile, signOut } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
+
+  const visibleLinks = navigationLinks.filter(
+    (item) => !item.roles || item.roles.includes(userProfile?.role),
+  );
 
   const handleLogout = async () => {
     const data = await signOut();
@@ -58,7 +69,7 @@ export default function Sidebar() {
         <div className="px-3 pb-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
           Main Menu
         </div>
-        {navigationLinks.map((item) => {
+        {visibleLinks.map((item) => {
           const Icon = item.icon;
           return (
             <NavLink
