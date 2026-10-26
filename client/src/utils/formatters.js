@@ -51,3 +51,29 @@ export function formatAssetLabel(asset) {
   const name = asset.name?.trim() || "Aset tanpa nama";
   return asset.serial_number ? `${name} · ${asset.serial_number}` : name;
 }
+
+const relativeTimeUnits = [
+  ["year", 60 * 60 * 24 * 365],
+  ["month", 60 * 60 * 24 * 30],
+  ["week", 60 * 60 * 24 * 7],
+  ["day", 60 * 60 * 24],
+  ["hour", 60 * 60],
+  ["minute", 60],
+];
+
+export function formatRelativeTime(value) {
+  if (!value) return "Waktu tidak tersedia";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Tanggal tidak valid";
+
+  const diffSeconds = Math.round((date.getTime() - Date.now()) / 1000);
+  const formatter = new Intl.RelativeTimeFormat("id-ID", { numeric: "auto" });
+
+  for (const [unit, seconds] of relativeTimeUnits) {
+    if (Math.abs(diffSeconds) >= seconds) {
+      return formatter.format(Math.round(diffSeconds / seconds), unit);
+    }
+  }
+
+  return "Baru saja";
+}

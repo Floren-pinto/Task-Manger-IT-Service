@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { useToast } from "../../contexts/ToastContext";
+import { NotificationBell } from "../notifications/NotificationBell";
 
 const navigationLinks = [
   { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
@@ -62,6 +63,7 @@ export default function Sidebar() {
             </p>
           </div>
         </div>
+        <NotificationBell variant="sidebar" />
       </div>
 
       {/* Navigation Links */}
