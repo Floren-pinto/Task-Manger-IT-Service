@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
+  ClipboardCheck,
   Clock3,
   FileText,
   MapPin,
@@ -15,11 +16,13 @@ import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { updateStatusTask } from "../services/taskService";
 import {
+  reportCreateRoles,
   statusUpdateRoles,
   taskEditRoles,
 } from "../constants/taskConstants";
 import { useTaskActivity } from "../hooks/useTaskActivity";
 import { useTaskMutations } from "../hooks/useTaskMutations";
+import { useTaskReports } from "../hooks/useTaskReports";
 import { emitTasksChanged } from "../utils/taskEvents";
 
 import { TaskEditDialog } from "../components/tasks/TaskEditDialog";
@@ -30,6 +33,9 @@ import { TaskAssignmentsSection } from "../components/tasks/TaskAssignmentsSecti
 import { TaskAttachmentsSection } from "../components/tasks/TaskAttachmentsSection";
 import { TaskActivityLog } from "../components/tasks/TaskActivityLog";
 import { TaskStatusForm } from "../components/tasks/TaskStatusForm";
+import { TaskReportsSection } from "../components/tasks/TaskReportsSection";
+import { TaskReportDialog } from "../components/tasks/TaskReportDialog";
+import { TaskReportDetailDialog } from "../components/tasks/TaskReportDetailDialog";
 
 function DetailSection({ icon: Icon, title, children, className = "" }) {
   return (
@@ -56,9 +62,17 @@ export function TaskDetailPage() {
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusError, setStatusError] = useState("");
   const [editOpen, setEditOpen] = useState(false);
+  const [reportCreateOpen, setReportCreateOpen] = useState(false);
+  const [selectedReportId, setSelectedReportId] = useState(null);
   const returnTo = location.state?.backgroundLocation || "/dashboard";
   const taskId = params.taskId || params.id;
   const { task, loading, error, refetch } = useTaskDetail(taskId);
+  const {
+    reports: serviceReports,
+    loading: reportsLoading,
+    error: reportsError,
+    refetch: refetchReports,
+  } = useTaskReports(taskId);
   const { assignTask, createTaskAttachment, deleteTaskAttachment, loading: mutationsLoading } = useTaskMutations();
   const userRole =
     typeof userProfile?.role === "string" ? userProfile.role.toUpperCase() : "";
@@ -153,6 +167,12 @@ export function TaskDetailPage() {
       : displayedStatus;
   const assignments = Array.isArray(task?.assignments) ? task.assignments : [];
   const attachments = Array.isArray(task?.attachments) ? task.attachments : [];
+  const canCreateRole = reportCreateRoles.has(userRole) && !task.deleted_at;
+  const canCreateReport = canCreateRole && displayedStatus === "COMPLETED";
+  const reportCreateHint =
+    canCreateRole && !canCreateReport
+      ? "Laporan servis dapat dibuat setelah tugas berstatus selesai."
+      : undefined;
 
   const handleStatusChange = (event) => {
     setStatusUpdate({
@@ -246,6 +266,19 @@ export function TaskDetailPage() {
             />
           </DetailSection>
 
+          <DetailSection icon={ClipboardCheck} title="Laporan servis">
+            <TaskReportsSection
+              reports={serviceReports}
+              loading={reportsLoading}
+              error={reportsError}
+              onRetry={refetchReports}
+              canCreate={canCreateReport}
+              createHint={reportCreateHint}
+              onCreate={() => setReportCreateOpen(true)}
+              onSelect={(report) => setSelectedReportId(report.id)}
+            />
+          </DetailSection>
+
           <DetailSection icon={CheckCircle2} title="Checklist pekerjaan">
             <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3">
               <p className="m-0 text-sm leading-relaxed text-slate-500">
@@ -300,6 +333,24 @@ export function TaskDetailPage() {
           emitTasksChanged();
           navigate(returnTo, { replace: true });
         }}
+      />
+
+      <TaskReportDialog
+        open={reportCreateOpen}
+        taskId={taskId}
+        onClose={() => setReportCreateOpen(false)}
+        onCreated={() => {
+          refetchReports();
+          refetch();
+          emitTasksChanged();
+        }}
+      />
+
+      <TaskReportDetailDialog
+        open={Boolean(selectedReportId)}
+        taskId={taskId}
+        reportId={selectedReportId}
+        onClose={() => setSelectedReportId(null)}
       />
     </div>
   );

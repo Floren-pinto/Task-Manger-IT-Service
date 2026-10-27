@@ -6,7 +6,7 @@ import {
   Network,
   Users,
   UserCog,
-  BarChart3,
+  History,
   LogOut,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
@@ -24,7 +24,7 @@ const navigationLinks = [
     icon: UserCog,
     roles: ["SUPER_ADMIN"],
   },
-  { name: "SLA Reports", path: "/reports", icon: BarChart3 },
+  { name: "Service History", path: "/service-history", icon: History },
 ];
 
 export default function Sidebar() {

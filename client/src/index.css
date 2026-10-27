@@ -43,3 +43,22 @@ body {
   min-height: 100vh;
   width: 100%;
 }
+
+/* Cetak laporan servis: hanya area laporan yang dicetak. */
+.report-print-root {
+  display: none;
+}
+
+@media print {
+  body.printing-report > *:not(.report-print-root) {
+    display: none !important;
+  }
+
+  body.printing-report .report-print-root {
+    display: block;
+  }
+
+  body.printing-report {
+    background: #fff;
+  }
+}

@@ -1,9 +1,18 @@
 -- function to enforce column restrictions for tasks table based on user role
+-- completed_at is derived from status here and always overrides client input,
+-- so it is excluded from the column comparison below
 CREATE OR REPLACE FUNCTION enforce_task_column_restrictions()
 RETURNS TRIGGER AS $$
-DECLARE allowed_columns_technician text[] := ARRAY['status', 'description', 'updated_at'];
-        allowed_columns_staff text[] := ARRAY['priority', 'due_date', 'updated_at'];
+DECLARE allowed_columns_technician text[] := ARRAY['status', 'description', 'updated_at', 'completed_at'];
+        allowed_columns_staff text[] := ARRAY['priority', 'due_date', 'updated_at', 'completed_at'];
 BEGIN
+    NEW.completed_at := CASE
+        WHEN NEW.status = 'COMPLETED'
+             AND OLD.status IS DISTINCT FROM 'COMPLETED' THEN now()
+        WHEN NEW.status <> 'COMPLETED' THEN NULL
+        ELSE OLD.completed_at
+    END;
+
     IF get_my_role() IN ('TECHNICIAN')
     AND (
         to_jsonb(OLD.*) - allowed_columns_technician <> to_jsonb(NEW.*) - allowed_columns_technician

@@ -35,6 +35,8 @@
 | `/assets` | ✓ | ✓ |
 | `/divisions` | ✓ | ✓ |
 | `/dashboard` | ✓ | ✓ |
+| `/service-history` | ✓ | ✓ |
+| `/service-reports` | ✓ | ✓ |
 
 `attachProfile` membaca tabel `users` dengan kolom `{ id, name, email, role, division_id, is_active, deleted_at }`. Jika profil tidak ditemukan → 404 `"profile not found or inaccesible"`; jika `is_active = false` atau `deleted_at` terisi → 403 `"Account is inactive"`.
 
@@ -203,7 +205,7 @@ Login/logout dilakukan **FE langsung ke Supabase Auth** (bukan endpoint Express)
 ```json
 {
   "id": "", "title": "", "description": "", "priority": "", "status": "",
-  "due_date": null, "created_at": "", "updated_at": "", "deleted_at": null,
+  "due_date": null, "completed_at": null, "created_at": "", "updated_at": "", "deleted_at": null,
   "createdBy":  { "id": "", "name": "", "email": "" },
   "division":   { "id": "", "name": "" },
   "client":     { "id": "", "name": "", "contact": "", "email": "", "address": "", "service_type": "" },
@@ -215,14 +217,15 @@ Login/logout dilakukan **FE langsung ke Supabase Auth** (bukan endpoint Express)
   "histories":   [{ "id": "", "old_status": "", "new_status": "", "changed_at": "",
                     "user": { "id": "", "name": "", "email": "" } }],
   "reports":     [{ "id": "", "summary": "", "action_taken": "", "notes": null, "created_at": "",
-                    "updated_at": "", "snapshot_data": { }, "createdBy": { "id": "", "name": "", "email": "" } }]
+                    "updated_at": "", "createdBy": { "id": "", "name": "", "email": "" } }]
 }
 ```
 
 - `asset` bisa `null` (task tanpa aset).
 - `attachments[].signed_url` dibuat server dan berlaku 24 jam; `file_url` tetap path asli di Storage. Jika pembuatan signed URL gagal, `signed_url` bernilai `null`.
 - Not found: query memakai `.maybeSingle()`, lalu controller mengembalikan 404 `"Task not found or accessible"`.
-- `reports[].snapshot_data` masih ikut di embed (temuan #16).
+- `completed_at` diturunkan dari status oleh trigger `enforce_task_column_restrictions` (terisi saat masuk `COMPLETED`, `null` saat keluar); nilai dari client selalu ditimpa.
+- `reports[]` tidak lagi membawa `snapshot_data`; snapshot diambil lewat `GET /api/tasks/:taskId/reports/:reportId`.
 
 ### `POST /api/tasks/:taskId/assignments` ✅
 - Role: TECHNICIAN ditolak app layer (403); SUPER_ADMIN, MANAGER_DIVISION, STAFF mengikuti RLS.
@@ -290,7 +293,7 @@ Login/logout dilakukan **FE langsung ke Supabase Auth** (bukan endpoint Express)
 - File di Storage ikut dihapus setelah baris DB terhapus; jika penghapusan file gagal, error hanya dicatat di server log.
 - Error: 404 jika attachment tidak ditemukan; 500.
 
-🔜 Belum ada: `DELETE /api/tasks/:taskId/assignments/:assignmentId` (unassign), endpoint service reports, `POST/PATCH /api/users`, teams, `GET /api/dashboard/technicians`, `GET /api/dashboard/trend`.
+🔜 Belum ada: `DELETE /api/tasks/:taskId/assignments/:assignmentId` (unassign), teams, `GET /api/dashboard/technicians`, `GET /api/dashboard/trend`.
 
 ---
 
@@ -482,7 +485,7 @@ Bagian bertanda 🔒 menyangkut keamanan/aturan bisnis inti dan **wajib direview
 | P4 | Middleware menolak `is_active = false` atau `deleted_at` terisi dengan 403 | ✅ Selesai: `attachProfile` dipasang di semua mount, termasuk `/notifications` | — |
 | P5 | Policy `team_members` + izin MANAGER_DIVISION menulis `teams` divisinya sendiri (saat ini hanya SUPER_ADMIN) | 🔜 Belum | 7.7 |
 | P6 | View/fungsi SQL `SECURITY INVOKER` untuk agregat | ✅ Sebagian: `get_dashboard_summary` sudah ada; agregat tim/workload dan dashboard tambahan belum | 7.7, 7.8 |
-| P7 | (Opsional) kolom `tasks.completed_at`, diisi saat status menjadi `COMPLETED` | 🔜 Belum | 7.8 (D10), filter riwayat servis |
+| P7 | Kolom `tasks.completed_at`, diisi saat status menjadi `COMPLETED` | ✅ Selesai: `server/supabase/sql/migrations/00_add_tasks_completed_at.sql` (+ backfill) dan derivasi di trigger | — |
 
 ### 7.2 `GET /api/divisions` ✅
 
@@ -508,28 +511,28 @@ Perbedaan penting dari desain awal:
 - 200: `data: null`, message `"Task unassigned"`
 - Side effect: tidak ada notifikasi (enum `NotificationType` tidak punya tipe unassign).
 
-### 7.5 Service reports 🔜 🔒
+### 7.5 Service reports & riwayat servis ✅ 🔒
 
-Report bersifat **immutable** (RLS tidak punya policy UPDATE/DELETE). Koreksi = membuat report baru (D5).
+Report bersifat **immutable** (RLS tidak punya policy UPDATE/DELETE, dan tidak ada endpoint `PATCH`/`DELETE`). Koreksi = membuat report baru (D5). Satu task boleh punya banyak report.
 
-#### `POST /api/tasks/:taskId/reports`
+#### `POST /api/tasks/:taskId/reports` ✅
 
-- Role (RLS insert): SUPER_ADMIN, MANAGER_DIVISION, TECHNICIAN (divisi task, task tidak soft-deleted). STAFF → 403. (D6: apakah TECHNICIAN harus tercatat di assignment)
+- Role (RLS insert): SUPER_ADMIN, MANAGER_DIVISION, TECHNICIAN (divisi task, task tidak soft-deleted). STAFF → 403 (`42501` dipetakan ke 403 `"You are not allowed to create a service report for this task"`).
 - Body:
 
 | Field | Tipe | Wajib | Catatan |
 |---|---|---|---|
-| `summary` | string | ✓ | ⚠️ batas panjang usulan: 2000 karakter |
-| `actionTaken` | string | ✓ | idem |
-| `notes` | string / `null` | ✗ | |
+| `summary` | string | ✓ | di-trim, maks 2000 karakter |
+| `actionTaken` | string | ✓ | di-trim, maks 2000 karakter |
+| `notes` | string / `null` | ✗ | maks 2000 karakter; string kosong → `null` |
 
-- `snapshotData` **tidak diterima dari client** (mengirimnya → 400). Server membuatnya saat report dibuat, supaya report tetap utuh walau data task/klien berubah kemudian.
-- Aturan: task harus berstatus `COMPLETED` (D4) → selain itu 409.
-- Isi `snapshot_data` (key snake_case, disimpan apa adanya):
+- `snapshotData`/`snapshot_data` dari client → 400 `"snapshotData is generated by the server"`. `created_by_id` diambil dari `req.profile.id`, bukan dari body.
+- Aturan: task tidak terlihat (RLS) atau soft-deleted → 404 `"Task not found or accessible"`; status selain `COMPLETED` → 409 `"Service report can only be created for completed tasks"` (D4).
+- `snapshot_data` dibangun server dari query `req.supabase` (`server/src/utils/serviceReportSnapshot.js`), sehingga hanya berisi data yang boleh dilihat pembuat report. Contoh: karena RLS `users`, report buatan TECHNICIAN hanya memuat teknisi yang terlihat olehnya (dirinya sendiri).
 
 ```json
 {
-  "task": { "id": "", "title": "", "description": "", "priority": "", "status": "", "due_date": null, "created_at": "" },
+  "task": { "id": "", "title": "", "description": "", "priority": "", "status": "", "due_date": null, "completed_at": "", "created_at": "" },
   "division": { "id": "", "name": "" },
   "client": { "id": "", "name": "", "contact": "", "email": null, "address": "", "service_type": "" },
   "asset": { "id": "", "name": "", "serial_number": null, "type": "" },
@@ -539,26 +542,61 @@ Report bersifat **immutable** (RLS tidak punya policy UPDATE/DELETE). Koreksi = 
 }
 ```
 
-  (`asset` bernilai `null` bila task tanpa aset.)
+  (`asset` bernilai `null` bila task tanpa aset; `status_history` urut `changed_at` asc.)
 
-- 201: `data` = `{ id, task_id, created_by_id, summary, action_taken, notes, snapshot_data, created_at, updated_at }`, message `"Service report created"`
-- Error: 400 · 403 · 404 · 409
+- 201: `data` = `{ id, task_id, created_by_id, summary, action_taken, notes, snapshot_data, created_at, updated_at, createdBy }`, message `"Service report created"`
+- Error: 400 · 403 · 404 · 409 · 500
 
-#### `GET /api/tasks/:taskId/reports`
+#### `GET /api/tasks/:taskId/reports` ✅
 
-- Role: yang dapat melihat task (RLS)
+- Role: yang dapat melihat task (RLS). Task tidak terlihat → 404.
 - 200: `data` = array, urut `created_at` desc, **tanpa `snapshot_data`**
 
 ```json
-[{ "id": "", "summary": "", "action_taken": "", "notes": null, "created_at": "",
-   "createdBy": { "id": "", "name": "", "email": "" } }]
+[{ "id": "", "task_id": "", "created_by_id": "", "summary": "", "action_taken": "", "notes": null,
+   "created_at": "", "updated_at": "", "createdBy": { "id": "", "name": "", "email": "" } }]
 ```
 
-#### `GET /api/tasks/:taskId/reports/:reportId`
+#### `GET /api/tasks/:taskId/reports/:reportId` ✅
 
-- 200: `data` = report lengkap **termasuk `snapshot_data`** (dipakai untuk tampilan cetak). Report bukan milik `:taskId` → 404.
+- 200: `data` = report lengkap **termasuk `snapshot_data`** dan `createdBy` (dipakai untuk tampilan cetak). `reportId` bukan UUID → 400; report tidak ada/bukan milik `:taskId`/tidak terlihat → 404.
 
-Catatan: embed `reports` di `GET /api/tasks/:taskId` saat ini ikut membawa `snapshot_data` (payload berat) → usul dihapus dari embed (temuan #16). Export PDF/CSV (FR-42) masuk fase lanjut; untuk MVP FE bisa merender dari `snapshot_data` dan mencetak dengan `window.print()`.
+#### `GET /api/service-reports/:reportId` ✅
+
+- Sama dengan endpoint nested di atas tanpa `taskId`. Mount `/service-reports` memakai `requireAuth` + `attachProfile`.
+
+#### `GET /api/service-history` ✅
+
+Daftar **task selesai** (bukan daftar report). Mount `/service-history` memakai `requireAuth` + `attachProfile`; RLS `tasks` membatasi hasil (TECHNICIAN hanya divisinya).
+
+- Query: `search` (judul, ID task, atau nama client), `clientId`, `assetId`, `divisionId` (UUID; selain itu → 400), `technicianId`, `completedFrom`/`completedTo` (`YYYY-MM-DD`; format salah atau from > to → 400), `page` (default 1), `limit` (default 20, maks 100), `sortOrder=desc|asc` (berdasarkan `completed_at`, default `desc`).
+- Hanya `status = COMPLETED` dan `deleted_at IS NULL`; filter tanggal memakai `completed_at`.
+- `report` = report **terbaru** task tersebut (tanpa `snapshot_data`) atau `null` bila belum ada; task tanpa report tetap tampil.
+- 200:
+
+```json
+{
+  "history": [{
+    "task": { "id": "", "title": "", "description": "", "status": "COMPLETED", "priority": "", "due_date": null, "completed_at": "" },
+    "report": { "id": "", "summary": "", "action_taken": "", "notes": null, "created_at": "", "created_by_id": "" },
+    "client": { "id": "", "name": "", "contact": "", "email": null, "address": "", "service_type": "" },
+    "asset": { "id": "", "name": "", "serial_number": null, "type": "" },
+    "division": { "id": "", "name": "" },
+    "technicians": [{ "id": "", "name": "", "email": "" }]
+  }],
+  "pagination": { "page": 1, "limit": 20, "total": 1, "totalPages": 1 }
+}
+```
+
+#### `GET /api/service-history/export` ✅
+
+- Query sama dengan list tanpa `page`/`limit`; maksimal 5000 baris.
+- 200: `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="service-history-YYYYMMDD.csv"` (header ini diekspos lewat CORS `exposedHeaders`).
+- Kolom: Task ID, Title, Client, Asset, Division, Technicians, Completed At, Priority, Summary, Action Taken, Notes (report terbaru).
+- Setiap sel dibungkus `"` dengan `"` di-escape menjadi `""`; sel yang diawali `=`, `+`, `-`, `@`, tab, atau CR diberi prefix `'` (cegah formula injection). File diawali BOM UTF-8 agar terbaca benar di Excel.
+- Error validasi/DB dikirim sebagai JSON sebelum header CSV dikirim.
+
+Belum termasuk: export PDF dan SLA report (halaman `/reports` dialihkan ke `/service-history`).
 
 ### 7.6 Users ✅ 🔒
 
@@ -649,7 +687,7 @@ Sudah diimplementasikan. Kontrak aktual ada di **Bagian 3**.
 
 Perbedaan dari usulan awal: parameter aktual adalah `technicianId` (bukan `assigneeId`), `sortOrder` (bukan `order`), `sortBy` hanya `due_date` atau default `created_at`, dan `status`/`priority` hanya menerima satu nilai. Belum ada `assetType`, `createdFrom`, `createdTo`. `includeDeleted=true` tetap dibatasi RLS.
 
-**Riwayat servis (FR-40/41) tidak butuh endpoint baru:** gunakan `status=COMPLETED` + `clientId` / `divisionId` + rentang tanggal. `assetId` belum menjadi filter `GET /api/tasks`. Catatan: tabel `tasks` belum punya `completed_at`, sehingga rentang "tanggal selesai" memerlukan join ke `task_status_history` atau kolom baru (P7).
+**Riwayat servis (FR-40/41):** memakai `GET /api/service-history` (Bagian 7.5) dengan filter client, asset, divisi, teknisi, dan rentang `completed_at`.
 
 ### 7.10 Keputusan bisnis yang perlu kamu putuskan 🔒
 
@@ -705,8 +743,8 @@ Status: **Masih** = perlu tindakan; **Selesai** = sudah sesuai implementasi; **S
 | 13 | FK `onDelete: Restrict` ke `users` + `users.deleted_at` | ✅ Selesai | `users.deleted_at` ada; endpoint user admin/soft delete belum diimplementasikan. |
 | 14 | Policy `team_members` tidak ada; policy `teams` hanya SUPER_ADMIN | 🐞 Masih | Fitur tim terblokir atau terbuka tanpa kontrol; perlu P5. |
 | 15 | Pengecekan `is_active` | ✅ Selesai | `attachProfile` menolak inactive/deleted di semua mount, termasuk `/notifications`. |
-| 16 | `GET /api/tasks/:taskId` menyertakan `reports[].snapshot_data` | 🐞 Masih | Payload detail task membengkak. |
-| 17 | `tasks` tidak punya `completed_at` | 🐞 Masih | Filter riwayat servis per tanggal selesai dan rata-rata waktu penyelesaian harus join `task_status_history`. |
+| 16 | `GET /api/tasks/:taskId` menyertakan `reports[].snapshot_data` | ✅ Selesai | Embed `reports` tanpa `snapshot_data`; snapshot lewat endpoint detail report. |
+| 17 | `tasks` tidak punya `completed_at` | ✅ Selesai | Kolom `completed_at` + index; diturunkan dari status oleh trigger; backfill dari `task_status_history`. |
 | 18 | `GET /notifications?isRead=false` | ✅ Selesai | `isRead` di-parse eksplisit (`true`/`false`); `false` memfilter `is_read = false`. |
 | 19 | Assets soft-deleted terlihat semua role | 🐞 Baru | RLS `USING(TRUE)` + `deleted_at` tidak di-select; list bisa memuat asset terhapus tanpa penanda. |
 | 20 | `updateClient` email | 🐞 Baru | Kondisi `email !== undefined \|\| email !== null \|\| email !== ""` selalu true; email selalu masuk payload dan tidak bisa dikosongkan sebagai satu-satunya perubahan. |
@@ -730,12 +768,11 @@ Status: **Masih** = perlu tindakan; **Selesai** = sudah sesuai implementasi; **S
 Yang masih diperlukan:
 
 1. Policy `team_members` + izin MANAGER_DIVISION menulis `teams` divisinya (P5).
-2. Keputusan `tasks.completed_at` atau cara menghitung waktu selesai (P7).
-3. Implementasi endpoint yang masih 🔜: users admin, unassign, service reports, teams, dashboard technicians/trend.
-4. Konfirmasi apakah TECHNICIAN boleh mengakses dashboard summary (saat ini 200 dengan data RLS, bukan 403).
-5. Konfirmasi apakah assets soft-deleted memang harus terlihat semua role (saat ini ya, tanpa `deleted_at` di response).
-6. Perbaikan bug #4, #5, #19, #20, #21, #24, #26, #27, #28, #29, #30.
-7. Keputusan bisnis D2–D11 (D1 saat ini sudah mengikuti implementasi: admin/manager boleh ubah division).
+2. Implementasi endpoint yang masih 🔜: unassign, teams, dashboard technicians/trend.
+3. Konfirmasi apakah TECHNICIAN boleh mengakses dashboard summary (saat ini 200 dengan data RLS, bukan 403).
+4. Konfirmasi apakah assets soft-deleted memang harus terlihat semua role (saat ini ya, tanpa `deleted_at` di response).
+5. Perbaikan bug #4, #5, #19, #20, #21, #24, #26, #27, #29, #30.
+6. Keputusan bisnis D2–D11 (D1 saat ini sudah mengikuti implementasi: admin/manager boleh ubah division).
 
 ---
 
@@ -747,3 +784,4 @@ Yang masih diperlukan:
 | v0.1 | 2026-10-15 | Bagian 7 diganti desain lengkap (divisions, edit/soft delete task, unassign, reports, users, teams, dashboard, filter tasks); tambah prasyarat P1–P7, keputusan D1–D11, temuan #12–#17 |
 | v0.2 | 2026-10-21 | Sinkronisasi dengan implementasi: envelope sukses/error, middleware mount, filter/response tasks, `PATCH /api/tasks/:taskId`, divisions, dashboard summary, query users, clients/assets, attachment signed URL; menambah temuan #18–#30 dan memperbarui daftar pekerjaan tersisa |
 | v0.3 | 2026-10-27 | Notifikasi in-app (Sesi 3): mount `/notifications` memakai `attachProfile`, filter `isRead=false`, `totalPages`, endpoint `unread-count` dan `read-all`, catatan Realtime; `boolParser` diperbaiki untuk Express 5 (filter `includeDeleted`/`status` kembali bekerja); temuan #6, #15, #18, #28 selesai |
+| v0.4 | 2026-10-27 | Riwayat servis (Sesi 4): `tasks.completed_at`, endpoint service report per task dan global, `GET /api/service-history` + export CSV, embed `reports` tanpa `snapshot_data`; P7, temuan #16, #17 selesai |

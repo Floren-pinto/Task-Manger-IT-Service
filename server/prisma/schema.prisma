@@ -151,6 +151,7 @@ model Task {
   clientId    String              @map("client_id")
   assetId     String?             @map("asset_id")
   deletedAt   DateTime?           @map("deleted_at")
+  completedAt DateTime?           @map("completed_at")
   createdAt   DateTime            @default(now()) @map("created_at")
   updatedAt   DateTime            @default(now()) @updatedAt @map("updated_at")
   createdById String   @map("created_by_id")
@@ -169,6 +170,7 @@ model Task {
   @@index([status])
   @@index([dueDate])
   @@index([divisionId])
+  @@index([completedAt])
 
   @@map("tasks")
 }

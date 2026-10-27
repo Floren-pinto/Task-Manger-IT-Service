@@ -38,6 +38,14 @@ const swaggerOptions = {
         name: "Notifications",
         description: "Notifikasi in-app milik user yang sedang login",
       },
+      {
+        name: "Service Reports",
+        description: "Laporan servis immutable per task",
+      },
+      {
+        name: "Service History",
+        description: "Riwayat task selesai dan export CSV",
+      },
     ],
     components: {
       securitySchemes: {
@@ -84,6 +92,103 @@ const swaggerOptions = {
             is_read: { type: "boolean", example: false },
             created_at: { type: "string", format: "date-time" },
             related_task_id: { type: "string", nullable: true },
+          },
+        },
+        ServiceReport: {
+          type: "object",
+          properties: {
+            id: { type: "string", format: "uuid" },
+            task_id: { type: "string" },
+            created_by_id: { type: "string" },
+            summary: { type: "string" },
+            action_taken: { type: "string" },
+            notes: { type: "string", nullable: true },
+            created_at: { type: "string", format: "date-time" },
+            updated_at: { type: "string", format: "date-time" },
+            createdBy: {
+              type: "object",
+              nullable: true,
+              properties: {
+                id: { type: "string" },
+                name: { type: "string" },
+                email: { type: "string" },
+              },
+            },
+          },
+        },
+        ServiceReportDetail: {
+          allOf: [
+            { $ref: "#/components/schemas/ServiceReport" },
+            {
+              type: "object",
+              properties: {
+                snapshot_data: {
+                  type: "object",
+                  description:
+                    "Snapshot task, division, client, asset, technicians, status_history, dan generated_at saat laporan dibuat.",
+                },
+              },
+            },
+          ],
+        },
+        ServiceHistoryItem: {
+          type: "object",
+          properties: {
+            task: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                title: { type: "string" },
+                description: { type: "string" },
+                status: { type: "string", example: "COMPLETED" },
+                priority: { type: "string", enum: priorityEnum },
+                due_date: { type: "string", format: "date-time", nullable: true },
+                completed_at: { type: "string", format: "date-time" },
+              },
+            },
+            report: {
+              type: "object",
+              nullable: true,
+              description: "Laporan terbaru tanpa snapshot_data.",
+              properties: {
+                id: { type: "string", format: "uuid" },
+                summary: { type: "string" },
+                action_taken: { type: "string" },
+                notes: { type: "string", nullable: true },
+                created_at: { type: "string", format: "date-time" },
+                created_by_id: { type: "string" },
+              },
+            },
+            client: { $ref: "#/components/schemas/Client" },
+            asset: {
+              type: "object",
+              nullable: true,
+              properties: {
+                id: { type: "string", format: "uuid" },
+                name: { type: "string" },
+                serial_number: { type: "string", nullable: true },
+                type: { type: "string" },
+              },
+            },
+            division: {
+              type: "object",
+              nullable: true,
+              properties: {
+                id: { type: "string", format: "uuid" },
+                name: { type: "string" },
+              },
+            },
+            technicians: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  name: { type: "string" },
+                  email: { type: "string" },
+                },
+              },
+            },
           },
         },
         Asset: {
@@ -1422,6 +1527,378 @@ const swaggerOptions = {
             },
             404: {
               description: "Notifikasi tidak ditemukan atau milik user lain",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/tasks/{taskId}/reports": {
+        get: {
+          tags: ["Service Reports"],
+          summary: "Daftar laporan servis sebuah task",
+          description:
+            "Urut created_at desc, tanpa snapshot_data. Task yang tidak terlihat (RLS) menghasilkan 404.",
+          parameters: [
+            {
+              name: "taskId",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Daftar laporan servis",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      success: { type: "boolean", example: true },
+                      message: { type: "string", example: "OK" },
+                      data: {
+                        type: "array",
+                        items: { $ref: "#/components/schemas/ServiceReport" },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            401: {
+              description: "Tidak terautentikasi",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            404: {
+              description: "Task tidak ditemukan atau tidak dapat diakses",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+          },
+        },
+        post: {
+          tags: ["Service Reports"],
+          summary: "Buat laporan servis untuk task COMPLETED",
+          description:
+            "Snapshot dibuat server dari data yang terlihat oleh user. Laporan immutable; koreksi dilakukan dengan laporan baru. STAFF ditolak RLS (403).",
+          parameters: [
+            {
+              name: "taskId",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["summary", "actionTaken"],
+                  properties: {
+                    summary: { type: "string", maxLength: 2000 },
+                    actionTaken: { type: "string", maxLength: 2000 },
+                    notes: { type: "string", maxLength: 2000, nullable: true },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            201: {
+              description: "Laporan servis dibuat",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      success: { type: "boolean", example: true },
+                      message: {
+                        type: "string",
+                        example: "Service report created",
+                      },
+                      data: {
+                        $ref: "#/components/schemas/ServiceReportDetail",
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            400: {
+              description:
+                "Body tidak valid atau snapshotData dikirim dari client",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            403: {
+              description: "Role tidak diizinkan membuat laporan",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            404: {
+              description: "Task tidak ditemukan atau tidak dapat diakses",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            409: {
+              description: "Task belum berstatus COMPLETED",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/tasks/{taskId}/reports/{reportId}": {
+        get: {
+          tags: ["Service Reports"],
+          summary: "Detail laporan servis sebuah task (termasuk snapshot)",
+          parameters: [
+            {
+              name: "taskId",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+            },
+            {
+              name: "reportId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Laporan servis lengkap",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      success: { type: "boolean", example: true },
+                      message: { type: "string", example: "OK" },
+                      data: {
+                        $ref: "#/components/schemas/ServiceReportDetail",
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            400: {
+              description: "ID laporan tidak valid",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            404: {
+              description: "Laporan tidak ditemukan atau bukan milik task",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/service-reports/{reportId}": {
+        get: {
+          tags: ["Service Reports"],
+          summary: "Detail laporan servis (termasuk snapshot)",
+          parameters: [
+            {
+              name: "reportId",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Laporan servis lengkap",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      success: { type: "boolean", example: true },
+                      message: { type: "string", example: "OK" },
+                      data: {
+                        $ref: "#/components/schemas/ServiceReportDetail",
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            400: {
+              description: "ID laporan tidak valid",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            404: {
+              description: "Laporan tidak ditemukan atau tidak dapat diakses",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/service-history": {
+        get: {
+          tags: ["Service History"],
+          summary: "Riwayat task selesai beserta laporan terbaru",
+          description:
+            "Hanya task COMPLETED yang tidak diarsipkan dan terlihat oleh RLS. report bernilai null bila task belum punya laporan.",
+          parameters: [
+            { name: "search", in: "query", schema: { type: "string" } },
+            {
+              name: "clientId",
+              in: "query",
+              schema: { type: "string", format: "uuid" },
+            },
+            {
+              name: "assetId",
+              in: "query",
+              schema: { type: "string", format: "uuid" },
+            },
+            {
+              name: "divisionId",
+              in: "query",
+              schema: { type: "string", format: "uuid" },
+            },
+            { name: "technicianId", in: "query", schema: { type: "string" } },
+            {
+              name: "completedFrom",
+              in: "query",
+              schema: { type: "string", format: "date" },
+            },
+            {
+              name: "completedTo",
+              in: "query",
+              schema: { type: "string", format: "date" },
+            },
+            {
+              name: "page",
+              in: "query",
+              schema: { type: "integer", minimum: 1, default: 1 },
+            },
+            {
+              name: "limit",
+              in: "query",
+              schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+            },
+            {
+              name: "sortOrder",
+              in: "query",
+              schema: { type: "string", enum: ["desc", "asc"], default: "desc" },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Riwayat servis",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      success: { type: "boolean", example: true },
+                      message: { type: "string", example: "OK" },
+                      data: {
+                        type: "object",
+                        properties: {
+                          history: {
+                            type: "array",
+                            items: {
+                              $ref: "#/components/schemas/ServiceHistoryItem",
+                            },
+                          },
+                          pagination: {
+                            $ref: "#/components/schemas/Pagination",
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            400: {
+              description: "Filter tidak valid",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            401: {
+              description: "Tidak terautentikasi",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/service-history/export": {
+        get: {
+          tags: ["Service History"],
+          summary: "Export riwayat servis ke CSV (maks 5000 baris)",
+          description:
+            "Query sama dengan GET /api/service-history tanpa page/limit. Sel yang diawali =, +, -, @, tab, atau CR diberi prefix ' untuk mencegah formula injection.",
+          responses: {
+            200: {
+              description: "File CSV",
+              headers: {
+                "Content-Disposition": {
+                  schema: {
+                    type: "string",
+                    example:
+                      'attachment; filename="service-history-20261027.csv"',
+                  },
+                },
+              },
+              content: {
+                "text/csv": { schema: { type: "string" } },
+              },
+            },
+            400: {
+              description: "Filter tidak valid",
               content: {
                 "application/json": {
                   schema: { $ref: "#/components/schemas/ErrorResponse" },

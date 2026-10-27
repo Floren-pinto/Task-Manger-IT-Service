@@ -34,7 +34,7 @@ Access to data and operations is controlled according to each user's role and th
 - [x] Task Assignment
 - [x] Task Status History
 - [x] Task Attachments
-- [ ] Service Reports
+- [x] Service Reports & Service History (laporan immutable, riwayat servis, export CSV; PDF dan SLA report belum termasuk)
 - [x] Client Management
 - [x] User Management (SUPER_ADMIN only)
 - [x] Notification (in-app bell, halaman /notifications, Realtime + fallback polling; deadline reminder otomatis belum termasuk)
@@ -98,10 +98,12 @@ The dashboard summary uses the `get_dashboard_summary()` RPC. Apply `server/supa
 
 - [x] Client Management
 - [x] User Management (SUPER_ADMIN only)
+- [x] Service Reports & Service History (laporan immutable, riwayat servis, export CSV)
 
 ### Planned
 
-- [ ] Service Reports
+- [ ] Export PDF laporan servis
+- [ ] SLA Reports
 
 ## Feature Improvements
 

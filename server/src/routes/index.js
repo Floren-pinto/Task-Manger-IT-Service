@@ -9,6 +9,8 @@ import clientRoutes from "./client.routes.js";
 import assetRoutes from "./asset.routes.js";
 import divisionRoutes from "./division.routes.js";
 import dashboardRoutes from "./dashboard.routes.js";
+import serviceHistoryRoutes from "./serviceHistory.routes.js";
+import serviceReportRoutes from "./serviceReport.routes.js";
 
 const router = Router();
 
@@ -27,5 +29,14 @@ router.use("/assets", requireAuth, attachProfile, assetRoutes);
 router.use("/divisions", requireAuth, attachProfile, divisionRoutes);
 
 router.use("/dashboard", requireAuth, attachProfile, dashboardRoutes);
+
+router.use(
+  "/service-history",
+  requireAuth,
+  attachProfile,
+  serviceHistoryRoutes,
+);
+
+router.use("/service-reports", requireAuth, attachProfile, serviceReportRoutes);
 
 export default router;
