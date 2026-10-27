@@ -16,10 +16,17 @@ function parseBooleanValue(val) {
 
 export function boolParser() {
   return (req, _res, next) => {
-    if (req.query && typeof req.query === "object") {
-      for (const [key, value] of Object.entries(req.query)) {
-        req.query[key] = parseBooleanValue(value);
-      }
+    // Express 5 mendefinisikan req.query sebagai getter yang mem-parse ulang
+    // query string di setiap akses, sehingga mutasi langsung hilang. Simpan
+    // hasil parse sebagai own property agar menimpa getter tersebut.
+    const query = req.query;
+    if (query && typeof query === "object") {
+      Object.defineProperty(req, "query", {
+        value: parseBooleanValue(query),
+        writable: true,
+        configurable: true,
+        enumerable: true,
+      });
     }
     next();
   };

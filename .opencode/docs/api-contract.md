@@ -81,7 +81,7 @@
 - Soft delete: `deleted_at` ada di `clients`, `assets`, `tasks`, dan `users`. Tidak ada endpoint `DELETE` untuk soft delete; gunakan `PATCH` dengan `deleted: true` (clients/assets/tasks).
 - Pagination: query `page` (default 1), `limit` (default 20, maksimum 100). Response `pagination: { page, limit, total }`; khusus tasks menambahkan `totalPages`. Endpoint non-paginated: users, divisions, attachments.
 - Search: clients/assets → `ilike` pada `name`; tasks → `ilike` pada `title` **atau** `id` (prefix `#` dibuang, karakter `,()%"` disanitasi).
-- Boolean query di-parse global oleh `boolParser` untuk string `true`/`false`.
+- Boolean query di-parse global oleh `boolParser` untuk string `true`/`false` (berlaku untuk `includeDeleted`, `includeDeletedAssets`, `status`, `isRead`). Di Express 5 hasil parse disimpan sebagai own property `req.query` karena getter bawaan mem-parse ulang di setiap akses.
 - Enum (dari `schema.prisma`):
   - `Role`: `SUPER_ADMIN | MANAGER_DIVISION | TECHNICIAN | STAFF`
   - `Priority`: `LOW | MEDIUM | HIGH | URGENT`
@@ -707,7 +707,7 @@ Status: **Masih** = perlu tindakan; **Selesai** = sudah sesuai implementasi; **S
 | 15 | Pengecekan `is_active` | ✅ Selesai | `attachProfile` menolak inactive/deleted di semua mount, termasuk `/notifications`. |
 | 16 | `GET /api/tasks/:taskId` menyertakan `reports[].snapshot_data` | 🐞 Masih | Payload detail task membengkak. |
 | 17 | `tasks` tidak punya `completed_at` | 🐞 Masih | Filter riwayat servis per tanggal selesai dan rata-rata waktu penyelesaian harus join `task_status_history`. |
-| 18 | `GET /notifications?isRead=false` | ✅ Selesai | `isRead` di-parse eksplisit (`true`/`false`); `false` memfilter `is_read = false`. Catatan: `boolParser` tidak berefek di Express 5 karena `req.query` di-parse ulang setiap diakses. |
+| 18 | `GET /notifications?isRead=false` | ✅ Selesai | `isRead` di-parse eksplisit (`true`/`false`); `false` memfilter `is_read = false`. |
 | 19 | Assets soft-deleted terlihat semua role | 🐞 Baru | RLS `USING(TRUE)` + `deleted_at` tidak di-select; list bisa memuat asset terhapus tanpa penanda. |
 | 20 | `updateClient` email | 🐞 Baru | Kondisi `email !== undefined \|\| email !== null \|\| email !== ""` selalu true; email selalu masuk payload dan tidak bisa dikosongkan sebagai satu-satunya perubahan. |
 | 21 | Pesan 42501 attachment | 🐞 Baru | `createTaskAttachment` mengembalikan `"you are not allowed to create a new client"` (salah konteks). |
@@ -717,7 +717,7 @@ Status: **Masih** = perlu tindakan; **Selesai** = sudah sesuai implementasi; **S
 | 25 | `GET /users` parameter | ⚠️ Baru | Implementasi memakai `division`, `status`; desain awal memakai `divisionId`, `isActive`. FE harus mengikuti implementasi saat ini. |
 | 26 | `testConnection` di `GET /users` | 🐞 Baru | Cek network interface, bukan internet; bisa 500 `"the internet is offline"` tanpa alasan yang tepat. |
 | 27 | Pesan validasi `POST /clients` | 🐞 Baru | Pesan menyebut `email` wajib, padahal `email` opsional. |
-| 28 | `GET /users?status=false` | 🐞 Baru | Kode `if (status)` membuat `false` tidak memfilter; daftar user nonaktif tidak bisa difilter dengan parameter ini. |
+| 28 | `GET /users?status=false` | ✅ Selesai | Controller memakai `typeof status === "boolean"` dan `boolParser` kini benar-benar mengubah `"false"` menjadi boolean di Express 5. |
 | 29 | Pemetaan `22P02` di create/update task | 🐞 Baru | Selalu dikembalikan sebagai `"Invalid priority value"`, padahal `22P02` juga bisa berarti UUID malformed pada `divisionId`/`clientId`/`assetId`. |
 | 30 | `listClients`/`listAssets` cek `data.length` sebelum `error` | 🐞 Baru | Jika query gagal dan `data` bernilai `null`, pengecekan ini bisa melempar error yang tidak tertangani. |
 
@@ -746,4 +746,4 @@ Yang masih diperlukan:
 | v0 | 2026-10-14 | Draft as-is dari kode yang ada |
 | v0.1 | 2026-10-15 | Bagian 7 diganti desain lengkap (divisions, edit/soft delete task, unassign, reports, users, teams, dashboard, filter tasks); tambah prasyarat P1–P7, keputusan D1–D11, temuan #12–#17 |
 | v0.2 | 2026-10-21 | Sinkronisasi dengan implementasi: envelope sukses/error, middleware mount, filter/response tasks, `PATCH /api/tasks/:taskId`, divisions, dashboard summary, query users, clients/assets, attachment signed URL; menambah temuan #18–#30 dan memperbarui daftar pekerjaan tersisa |
-| v0.3 | 2026-10-27 | Notifikasi in-app (Sesi 3): mount `/notifications` memakai `attachProfile`, filter `isRead=false`, `totalPages`, endpoint `unread-count` dan `read-all`, catatan Realtime; temuan #6, #15, #18 selesai |
+| v0.3 | 2026-10-27 | Notifikasi in-app (Sesi 3): mount `/notifications` memakai `attachProfile`, filter `isRead=false`, `totalPages`, endpoint `unread-count` dan `read-all`, catatan Realtime; `boolParser` diperbaiki untuk Express 5 (filter `includeDeleted`/`status` kembali bekerja); temuan #6, #15, #18, #28 selesai |

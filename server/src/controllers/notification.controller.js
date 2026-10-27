@@ -6,8 +6,8 @@ import { isUuid, parsePaginationParams } from "../utils/queryParams.js";
 const NOTIFICATION_COLUMNS =
   "id, user_id, title, message, type, is_read, created_at, related_task_id";
 
-// Express 5 mem-parse ulang req.query di setiap akses, jadi nilai boolean
-// dari query string tetap berupa string "true"/"false".
+// boolParser mengubah "true"/"false" menjadi boolean; string tetap diterima
+// agar controller tidak bergantung pada urutan middleware.
 function parseIsRead(value) {
   if (value === undefined || value === "") return undefined;
   if (value === true || value === "true") return true;
