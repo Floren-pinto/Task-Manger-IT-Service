@@ -34,6 +34,10 @@ const swaggerOptions = {
       { name: "Users", description: "Manajemen akun pengguna (SUPER_ADMIN)" },
       { name: "Tasks", description: "Tiket dan penugasan layanan IT" },
       { name: "Dashboard", description: "Ringkasan operasional tiket" },
+      {
+        name: "Notifications",
+        description: "Notifikasi in-app milik user yang sedang login",
+      },
     ],
     components: {
       securitySchemes: {
@@ -64,6 +68,22 @@ const swaggerOptions = {
             limit: { type: "integer", example: 20 },
             total: { type: "integer", example: 42 },
             totalPages: { type: "integer", example: 3 },
+          },
+        },
+        Notification: {
+          type: "object",
+          properties: {
+            id: { type: "string", format: "uuid" },
+            user_id: { type: "string" },
+            title: { type: "string", example: "Tugas baru ditugaskan" },
+            message: { type: "string" },
+            type: {
+              type: "string",
+              enum: ["ASSIGNMENT", "STATUS_CHANGE", "DEADLINE_REMINDER"],
+            },
+            is_read: { type: "boolean", example: false },
+            created_at: { type: "string", format: "date-time" },
+            related_task_id: { type: "string", nullable: true },
           },
         },
         Asset: {
@@ -1160,6 +1180,248 @@ const swaggerOptions = {
             },
             500: {
               description: "Gagal mengambil ringkasan dashboard",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/notifications": {
+        get: {
+          tags: ["Notifications"],
+          summary: "Daftar notifikasi milik sendiri",
+          description:
+            "RLS membatasi ke user_id = auth.uid(). User nonaktif/soft-deleted ditolak oleh attachProfile (403).",
+          parameters: [
+            {
+              name: "page",
+              in: "query",
+              schema: { type: "integer", minimum: 1, default: 1 },
+            },
+            {
+              name: "limit",
+              in: "query",
+              schema: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+            },
+            {
+              name: "isRead",
+              in: "query",
+              description: "true = hanya dibaca, false = hanya belum dibaca.",
+              schema: { type: "boolean" },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Daftar notifikasi, terbaru lebih dulu",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      success: { type: "boolean", example: true },
+                      message: { type: "string", example: "OK" },
+                      data: {
+                        type: "object",
+                        properties: {
+                          notifications: {
+                            type: "array",
+                            items: {
+                              $ref: "#/components/schemas/Notification",
+                            },
+                          },
+                          pagination: {
+                            $ref: "#/components/schemas/Pagination",
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            400: {
+              description: "isRead bukan true/false",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            401: {
+              description: "Tidak terautentikasi",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            403: {
+              description: "Akun nonaktif",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/notifications/unread-count": {
+        get: {
+          tags: ["Notifications"],
+          summary: "Jumlah notifikasi belum dibaca",
+          responses: {
+            200: {
+              description: "Jumlah notifikasi is_read = false milik sendiri",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      success: { type: "boolean", example: true },
+                      message: { type: "string", example: "OK" },
+                      data: {
+                        type: "object",
+                        properties: {
+                          unreadCount: { type: "integer", example: 3 },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            401: {
+              description: "Tidak terautentikasi",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            403: {
+              description: "Akun nonaktif",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/notifications/read-all": {
+        patch: {
+          tags: ["Notifications"],
+          summary: "Tandai semua notifikasi milik sendiri sebagai dibaca",
+          description:
+            "Tanpa body. Hanya baris is_read = false milik user yang login yang diubah (RLS).",
+          responses: {
+            200: {
+              description: "Jumlah notifikasi yang diubah (0 bila tidak ada)",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      success: { type: "boolean", example: true },
+                      message: { type: "string", example: "OK" },
+                      data: {
+                        type: "object",
+                        properties: {
+                          updated: { type: "integer", example: 4 },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            401: {
+              description: "Tidak terautentikasi",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            403: {
+              description: "Akun nonaktif",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+          },
+        },
+      },
+      "/api/notifications/{id}": {
+        patch: {
+          tags: ["Notifications"],
+          summary: "Tandai satu notifikasi sebagai dibaca",
+          description:
+            "Tanpa body; tidak bisa mengembalikan ke belum dibaca. Notifikasi milik user lain menghasilkan 404.",
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              schema: { type: "string", format: "uuid" },
+            },
+          ],
+          responses: {
+            200: {
+              description: "Notifikasi yang sudah ditandai dibaca",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      success: { type: "boolean", example: true },
+                      message: { type: "string", example: "OK" },
+                      data: {
+                        type: "object",
+                        properties: {
+                          notification: {
+                            $ref: "#/components/schemas/Notification",
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            400: {
+              description: "ID notifikasi tidak valid",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            401: {
+              description: "Tidak terautentikasi",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            403: {
+              description: "Akun nonaktif",
+              content: {
+                "application/json": {
+                  schema: { $ref: "#/components/schemas/ErrorResponse" },
+                },
+              },
+            },
+            404: {
+              description: "Notifikasi tidak ditemukan atau milik user lain",
               content: {
                 "application/json": {
                   schema: { $ref: "#/components/schemas/ErrorResponse" },

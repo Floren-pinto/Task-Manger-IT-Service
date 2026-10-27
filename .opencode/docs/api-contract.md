@@ -30,7 +30,7 @@
 | `/auth` | ✓ | ✓ |
 | `/users` | ✓ | ✓ |
 | `/tasks` | ✓ | ✓ |
-| `/notifications` | ✓ | ✗ 🐞 |
+| `/notifications` | ✓ | ✓ |
 | `/clients` | ✓ | ✓ |
 | `/assets` | ✓ | ✓ |
 | `/divisions` | ✓ | ✓ |
@@ -81,7 +81,7 @@
 - Soft delete: `deleted_at` ada di `clients`, `assets`, `tasks`, dan `users`. Tidak ada endpoint `DELETE` untuk soft delete; gunakan `PATCH` dengan `deleted: true` (clients/assets/tasks).
 - Pagination: query `page` (default 1), `limit` (default 20, maksimum 100). Response `pagination: { page, limit, total }`; khusus tasks menambahkan `totalPages`. Endpoint non-paginated: users, divisions, attachments.
 - Search: clients/assets → `ilike` pada `name`; tasks → `ilike` pada `title` **atau** `id` (prefix `#` dibuang, karakter `,()%"` disanitasi).
-- Boolean query di-parse global oleh `boolParser` untuk string `true`/`false`.
+- Boolean query di-parse global oleh `boolParser` untuk string `true`/`false` (berlaku untuk `includeDeleted`, `includeDeletedAssets`, `status`, `isRead`). Di Express 5 hasil parse disimpan sebagai own property `req.query` karena getter bawaan mem-parse ulang di setiap akses.
 - Enum (dari `schema.prisma`):
   - `Role`: `SUPER_ADMIN | MANAGER_DIVISION | TECHNICIAN | STAFF`
   - `Priority`: `LOW | MEDIUM | HIGH | URGENT`
@@ -296,18 +296,35 @@ Login/logout dilakukan **FE langsung ke Supabase Auth** (bukan endpoint Express)
 
 ## 4. Notifications
 
-Visibility: hanya milik sendiri (`user_id = auth.uid()`), **tanpa pengecualian SUPER_ADMIN**. Baris dibuat oleh trigger, bukan oleh API. Mount `/notifications` tidak memakai `attachProfile` (temuan #6).
+Visibility: hanya milik sendiri (`user_id = auth.uid()`), **tanpa pengecualian SUPER_ADMIN**. Baris dibuat oleh trigger (`ASSIGNMENT`, `STATUS_CHANGE`), bukan oleh API. Semua query memakai `req.supabase` sehingga RLS berlaku. Mount `/notifications` memakai `requireAuth` + `attachProfile`: user nonaktif/soft-deleted → 403 `"Account is inactive"`.
+
+Realtime: frontend berlangganan Supabase Realtime (Postgres Changes) pada tabel `notifications` dengan filter `user_id=eq.<id>` hanya sebagai pemicu refetch lewat API; fallback polling 60 detik bila Realtime tidak aktif. Prasyarat SQL: `server/supabase/sql/realtime/00_notifications_realtime.sql` (jalankan manual di Supabase SQL Editor).
+
+Belum termasuk: notifikasi `DEADLINE_REMINDER` otomatis (butuh scheduler `pg_cron`/Edge Function). UI sudah siap menampilkan tipe tersebut.
 
 ### `GET /api/notifications` ✅
-- Query: `page`, `limit`, `isRead` (boolean hasil `boolParser`).
-- `isRead=true` → filter `is_read = true`; `isRead=false` **tidak memfilter** karena kode memakai `if (isRead)` (temuan #18); nilai truthy non-boolean → 400 `"Invalid isRead query parameter"`.
-- 200: `data` = `{ notifications: [...], pagination: { page, limit, total } }` (tanpa `totalPages`)
-- Field item (`select *`): `id, user_id, title, message, type, is_read, created_at, related_task_id`.
+- Query: `page`, `limit`, `isRead` (`true`/`false`, di-parse eksplisit di controller).
+- `isRead=true` → hanya dibaca; `isRead=false` → hanya belum dibaca; tanpa `isRead` → semua. Nilai lain → 400 `"isRead must be true or false"`.
+- Urut `created_at` desc.
+- 200: `data` = `{ notifications: [...], pagination: { page, limit, total, totalPages } }`
+- Field item: `id, user_id, title, message, type, is_read, created_at, related_task_id`.
+- Error: 500 `"Failed to fetch notifications"`.
+
+### `GET /api/notifications/unread-count` ✅
+- Menghitung notifikasi `is_read = false` milik sendiri (RLS).
+- 200: `data` = `{ unreadCount: 3 }`
+- Error: 500 `"Failed to fetch unread notification count"`.
+
+### `PATCH /api/notifications/read-all` ✅
+- Tanpa body; tidak menerima `userId`. Hanya baris `is_read = false` milik user yang login yang diubah.
+- 200: `data` = `{ updated: 4 }` (`0` bila tidak ada yang belum dibaca).
+- Error: 500 `"Failed to update notifications"`.
 
 ### `PATCH /api/notifications/:id` ✅
 - Tanpa body; selalu menandai `is_read = true` (tidak bisa un-read: dibatasi RLS `WITH CHECK` + column grant).
-- 200: `data` = `{ notification: {...} }` 🐞 (satu-satunya update yang membungkus objek)
-- Error: 404 `"Notification not found"`; 500 `"Failed to update notification"`.
+- `id` bukan UUID → 400 `"Invalid notification ID"`.
+- 200: `data` = `{ notification: {...} }` 🐞 (satu-satunya update yang membungkus objek; dipertahankan demi kompatibilitas)
+- Error: 404 `"Notification not found"` (termasuk notifikasi milik user lain); 500 `"Failed to update notification"`.
 
 ---
 
@@ -462,7 +479,7 @@ Bagian bertanda 🔒 menyangkut keamanan/aturan bisnis inti dan **wajib direview
 | P1 | Policy/trigger UPDATE `tasks` untuk TECHNICIAN | ✅ Selesai: trigger mengizinkan `status`, `description`, `updated_at`; status diubah lewat RPC `update_task_status` | — |
 | P2 | Kolom `users.deleted_at` | ✅ Selesai: sudah ada di schema | — |
 | P3 | `supabaseAdmin` client (service role key, **server-only**, di `.env`, tidak pernah ke FE) | ✅ Tersedia (`supabaseAdmin` bernilai `null` bila key tidak diisi) | 7.6 |
-| P4 | Middleware menolak `is_active = false` atau `deleted_at` terisi dengan 403 | ✅ Sebagian: `attachProfile` sudah menolak; `/notifications` belum memakai `attachProfile` | — |
+| P4 | Middleware menolak `is_active = false` atau `deleted_at` terisi dengan 403 | ✅ Selesai: `attachProfile` dipasang di semua mount, termasuk `/notifications` | — |
 | P5 | Policy `team_members` + izin MANAGER_DIVISION menulis `teams` divisinya sendiri (saat ini hanya SUPER_ADMIN) | 🔜 Belum | 7.7 |
 | P6 | View/fungsi SQL `SECURITY INVOKER` untuk agregat | ✅ Sebagian: `get_dashboard_summary` sudah ada; agregat tim/workload dan dashboard tambahan belum | 7.7, 7.8 |
 | P7 | (Opsional) kolom `tasks.completed_at`, diisi saat status menjadi `COMPLETED` | 🔜 Belum | 7.8 (D10), filter riwayat servis |
@@ -678,7 +695,7 @@ Status: **Masih** = perlu tindakan; **Selesai** = sudah sesuai implementasi; **S
 | 3 | Request camelCase, response snake_case, alias relasi camelCase | 🐞 Masih | FE harus mapping manual, rawan salah nama field. |
 | 4 | `deleted_at` tidak dikembalikan di list/detail clients & assets | 🐞 Masih | FE tidak bisa menampilkan status "dihapus" atau tombol restore. |
 | 5 | `getClientDetail` memilih `assets.description` (kolom tidak ada di schema) | 🐞 Masih | Endpoint berpotensi 500. Ganti ke `serial_number, type`. |
-| 6 | `attachProfile` tidak dipasang di `/notifications` | 🐞 Masih | User nonaktif/soft-deleted masih bisa mengakses notifications selama token valid. `/assets` sudah dipasang. |
+| 6 | `attachProfile` tidak dipasang di `/notifications` | ✅ Selesai | Mount `/notifications` memakai `requireAuth` + `attachProfile`; user nonaktif/soft-deleted → 403. |
 | 7 | `updateTaskStatus` mengembalikan `select *` | 🐞 Masih | Bentuk response berbeda dari list/detail. |
 | 8 | Not-found: `.maybeSingle()` (task) vs `.single()` + PGRST116 (lainnya) | ✅ Sebagian | Task detail/update sudah 404 eksplisit; endpoint lain masih mengandalkan PGRST116 / `.single()`. |
 | 9 | Envelope error | ✅ Selesai | `{ success:false, message }`; `error` hanya non-production jika ada `details`; detail DB tidak dikirim di production. |
@@ -687,10 +704,10 @@ Status: **Masih** = perlu tindakan; **Selesai** = sudah sesuai implementasi; **S
 | 12 | Policy/trigger UPDATE `tasks` untuk TECHNICIAN | ✅ Selesai | Trigger mengizinkan `status`, `description`, `updated_at`; status via RPC. Update title oleh technician terverifikasi 403. |
 | 13 | FK `onDelete: Restrict` ke `users` + `users.deleted_at` | ✅ Selesai | `users.deleted_at` ada; endpoint user admin/soft delete belum diimplementasikan. |
 | 14 | Policy `team_members` tidak ada; policy `teams` hanya SUPER_ADMIN | 🐞 Masih | Fitur tim terblokir atau terbuka tanpa kontrol; perlu P5. |
-| 15 | Pengecekan `is_active` | ✅ Sebagian | `attachProfile` menolak inactive/deleted; `/notifications` tidak memakai `attachProfile`. |
+| 15 | Pengecekan `is_active` | ✅ Selesai | `attachProfile` menolak inactive/deleted di semua mount, termasuk `/notifications`. |
 | 16 | `GET /api/tasks/:taskId` menyertakan `reports[].snapshot_data` | 🐞 Masih | Payload detail task membengkak. |
 | 17 | `tasks` tidak punya `completed_at` | 🐞 Masih | Filter riwayat servis per tanggal selesai dan rata-rata waktu penyelesaian harus join `task_status_history`. |
-| 18 | `GET /notifications?isRead=false` | 🐞 Baru | Kode `if (isRead)` membuat `false` tidak memfilter; hasilnya semua notifikasi. |
+| 18 | `GET /notifications?isRead=false` | ✅ Selesai | `isRead` di-parse eksplisit (`true`/`false`); `false` memfilter `is_read = false`. |
 | 19 | Assets soft-deleted terlihat semua role | 🐞 Baru | RLS `USING(TRUE)` + `deleted_at` tidak di-select; list bisa memuat asset terhapus tanpa penanda. |
 | 20 | `updateClient` email | 🐞 Baru | Kondisi `email !== undefined \|\| email !== null \|\| email !== ""` selalu true; email selalu masuk payload dan tidak bisa dikosongkan sebagai satu-satunya perubahan. |
 | 21 | Pesan 42501 attachment | 🐞 Baru | `createTaskAttachment` mengembalikan `"you are not allowed to create a new client"` (salah konteks). |
@@ -700,7 +717,7 @@ Status: **Masih** = perlu tindakan; **Selesai** = sudah sesuai implementasi; **S
 | 25 | `GET /users` parameter | ⚠️ Baru | Implementasi memakai `division`, `status`; desain awal memakai `divisionId`, `isActive`. FE harus mengikuti implementasi saat ini. |
 | 26 | `testConnection` di `GET /users` | 🐞 Baru | Cek network interface, bukan internet; bisa 500 `"the internet is offline"` tanpa alasan yang tepat. |
 | 27 | Pesan validasi `POST /clients` | 🐞 Baru | Pesan menyebut `email` wajib, padahal `email` opsional. |
-| 28 | `GET /users?status=false` | 🐞 Baru | Kode `if (status)` membuat `false` tidak memfilter; daftar user nonaktif tidak bisa difilter dengan parameter ini. |
+| 28 | `GET /users?status=false` | ✅ Selesai | Controller memakai `typeof status === "boolean"` dan `boolParser` kini benar-benar mengubah `"false"` menjadi boolean di Express 5. |
 | 29 | Pemetaan `22P02` di create/update task | 🐞 Baru | Selalu dikembalikan sebagai `"Invalid priority value"`, padahal `22P02` juga bisa berarti UUID malformed pada `divisionId`/`clientId`/`assetId`. |
 | 30 | `listClients`/`listAssets` cek `data.length` sebelum `error` | 🐞 Baru | Jika query gagal dan `data` bernilai `null`, pengecekan ini bisa melempar error yang tidak tertangani. |
 
@@ -717,7 +734,7 @@ Yang masih diperlukan:
 3. Implementasi endpoint yang masih 🔜: users admin, unassign, service reports, teams, dashboard technicians/trend.
 4. Konfirmasi apakah TECHNICIAN boleh mengakses dashboard summary (saat ini 200 dengan data RLS, bukan 403).
 5. Konfirmasi apakah assets soft-deleted memang harus terlihat semua role (saat ini ya, tanpa `deleted_at` di response).
-6. Perbaikan bug #4, #5, #6, #18, #19, #20, #21, #24, #26, #27, #28, #29, #30.
+6. Perbaikan bug #4, #5, #19, #20, #21, #24, #26, #27, #28, #29, #30.
 7. Keputusan bisnis D2–D11 (D1 saat ini sudah mengikuti implementasi: admin/manager boleh ubah division).
 
 ---
@@ -729,3 +746,4 @@ Yang masih diperlukan:
 | v0 | 2026-10-14 | Draft as-is dari kode yang ada |
 | v0.1 | 2026-10-15 | Bagian 7 diganti desain lengkap (divisions, edit/soft delete task, unassign, reports, users, teams, dashboard, filter tasks); tambah prasyarat P1–P7, keputusan D1–D11, temuan #12–#17 |
 | v0.2 | 2026-10-21 | Sinkronisasi dengan implementasi: envelope sukses/error, middleware mount, filter/response tasks, `PATCH /api/tasks/:taskId`, divisions, dashboard summary, query users, clients/assets, attachment signed URL; menambah temuan #18–#30 dan memperbarui daftar pekerjaan tersisa |
+| v0.3 | 2026-10-27 | Notifikasi in-app (Sesi 3): mount `/notifications` memakai `attachProfile`, filter `isRead=false`, `totalPages`, endpoint `unread-count` dan `read-all`, catatan Realtime; `boolParser` diperbaiki untuk Express 5 (filter `includeDeleted`/`status` kembali bekerja); temuan #6, #15, #18, #28 selesai |

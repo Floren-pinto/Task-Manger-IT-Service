@@ -37,7 +37,7 @@ Access to data and operations is controlled according to each user's role and th
 - [ ] Service Reports
 - [x] Client Management
 - [x] User Management (SUPER_ADMIN only)
-- [x] Notification
+- [x] Notification (in-app bell, halaman /notifications, Realtime + fallback polling; deadline reminder otomatis belum termasuk)
 - [x] Dashboard
 
 ## Database
@@ -87,7 +87,7 @@ The dashboard summary uses the `get_dashboard_summary()` RPC. Apply `server/supa
 - [x] RBAC middleware & protected routes (FR-02, FR-04)
 - [x] Task Management v1 (list, search, filter, sort, pagination, create, edit, soft delete)
 - [x] Task Management (create, assign, status update — FR-20–FR-27)
-- [x] Notification
+- [x] Notification (in-app bell, halaman /notifications, Realtime + fallback polling; deadline reminder otomatis belum termasuk)
 - [x] Task Assignment
 - [x] Authentication (Supabase Auth di frontend — FR-01)
 - [x] Task Status History

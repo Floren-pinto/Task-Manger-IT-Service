@@ -3,8 +3,16 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from '../components/layout/Sidebar';
 import MobileHeader from '../components/layout/MobileHeader';
 import MobileBottomNav from '../components/layout/MobileBottomNav';
+import { useAuth } from '../contexts/AuthContext';
+import { useNotificationRealtime } from '../hooks/useNotificationRealtime';
 
 export default function DashboardLayout() {
+  const { user } = useAuth();
+
+  // Satu channel Realtime untuk seluruh layout; bell desktop & mobile
+  // mendengarkan event lokal yang dipancarkan hook ini.
+  useNotificationRealtime(user?.id);
+
   return (
     <div className="flex flex-col md:flex-row h-screen w-full overflow-hidden bg-[#F8FAFC]">
       {/* Desktop Main Sidebar (Hidden on Mobile) */}

@@ -18,7 +18,7 @@ router.use("/users", requireAuth, attachProfile, userRoutes);
 
 router.use("/tasks", requireAuth, attachProfile, taskRoutes);
 
-router.use("/notifications", requireAuth, notificationRoutes);
+router.use("/notifications", requireAuth, attachProfile, notificationRoutes);
 
 router.use("/clients", requireAuth, attachProfile, clientRoutes);
 

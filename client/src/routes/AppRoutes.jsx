@@ -13,6 +13,7 @@ import GenericPage from "../pages/GenericPage";
 import TasksPage from "../pages/TasksPage";
 import ClientsPage from "../pages/ClientsPage";
 import UsersPage from "../pages/UsersPage";
+import NotificationsPage from "../pages/NotificationsPage";
 import { ClientDetailDrawer } from "../components/clients/ClientDetailDrawer";
 import { TaskDetailPage } from "../pages/TaskDetailPage";
 
@@ -47,6 +48,7 @@ export default function AppRoutes() {
             />
             <Route path="/clients" element={<ClientsPage />} />
             <Route path="/clients/:clientId" element={<ClientDetailDrawer />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
             <Route element={<AdminRoute />}>
               <Route path="/users" element={<UsersPage />} />
             </Route>
