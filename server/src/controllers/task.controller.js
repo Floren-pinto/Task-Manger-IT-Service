@@ -161,7 +161,7 @@ export const getTaskDetail = asyncHandler(async (req, res) => {
           user:users!task_status_history_user_id_fkey (id, name, email)
         ),
         reports:service_reports (
-          id, summary, action_taken, notes, created_at, updated_at, snapshot_data,
+          id, summary, action_taken, notes, created_at, updated_at,
           createdBy:users!service_reports_created_by_id_fkey (id, name, email)
         )`,
     )

@@ -82,3 +82,11 @@ export const allowedAttachmentTypes = [
   "image/webp",
   "application/pdf",
 ];
+
+export const reportCreateRoles = new Set([
+  "SUPER_ADMIN",
+  "MANAGER_DIVISION",
+  "TECHNICIAN",
+]);
+
+export const reportTextMaxLength = 2000;
