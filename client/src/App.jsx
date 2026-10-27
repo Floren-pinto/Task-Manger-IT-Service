@@ -1,9 +1,7 @@
-import React from "react";
 import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ToastProvider } from "./contexts/ToastContext";
 import AppRoutes from "./routes/AppRoutes";
-import "./App.css";
 
 function App() {
   return (

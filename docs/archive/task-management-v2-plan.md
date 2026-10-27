@@ -14,11 +14,11 @@ Dokumen ini **hanya berisi rencana**. Tidak ada perubahan kode yang boleh dilaku
 - Status: **Draft untuk review**
 - Update terakhir: 21 Oktober 2026
 - Dokumen terkait:
-  - `.opencode/docs/srs_task_manager_it_service.md`
-  - `.opencode/docs/RBAC.md`
-  - `.opencode/docs/ui_specification_document.md`
-  - `.opencode/docs/api-contract.md`
-  - `.opencode/docs/task-management-v1-implementation-plan.md`
+  - `docs/srs.md`
+  - `docs/RBAC.md`
+  - `docs/ui-spec.md`
+  - `docs/api-contract.md`
+  - `docs/archive/task-management-v1-plan.md`
 
 ---
 
@@ -788,7 +788,7 @@ Form asset:
 - Uji TaskCreateDialog masih memuat asset.
 - Uji filter arsip.
 - Uji search kosong, pagination, dan error state.
-- Update `.opencode/docs/api-contract.md`:
+- Update `docs/api-contract.md`:
   - response client/asset aktual;
   - `includeDeleted`;
   - `totalPages`;

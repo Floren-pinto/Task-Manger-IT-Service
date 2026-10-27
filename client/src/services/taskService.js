@@ -34,11 +34,6 @@ export const assignTask = async (taskId, userId) => {
   return response.data?.data;
 };
 
-export const getTaskAttachments = async (taskId) => {
-  const response = await api.get(`/tasks/${taskId}/attachments`);
-  return response.data?.data;
-};
-
 export const createTaskAttachment = async (taskId, payload) => {
   const response = await api.post(`/tasks/${taskId}/attachments`, payload);
   return response.data?.data;
