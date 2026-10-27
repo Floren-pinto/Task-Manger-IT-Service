@@ -300,18 +300,15 @@ export function ClientDetailDrawer() {
           />
 
           <div className="border-b-0 px-5 py-5 sm:px-6">
-            <button
-              type="button"
-              disabled
-              title="Tersedia setelah modul riwayat servis aktif"
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-500 disabled:cursor-not-allowed disabled:bg-slate-50"
+            <Link
+              to={`/service-history?clientId=${encodeURIComponent(client.id)}`}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-[#0284C7]"
             >
               <History className="h-4 w-4" />
               Riwayat Servis
-            </button>
+            </Link>
             <p className="m-0 mt-2 text-xs text-slate-400">
-              Riwayat servis akan aktif pada sesi Riwayat Servis &amp; Service
-              Report.
+              Lihat tugas selesai dan laporan servis untuk client ini.
             </p>
           </div>
         </div>

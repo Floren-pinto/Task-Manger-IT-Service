@@ -38,6 +38,14 @@ export function assigneeNames(assignments) {
   return names.length > 0 ? names.join(", ") : "Nama teknisi tidak tersedia";
 }
 
+export function technicianNames(technicians) {
+  if (!Array.isArray(technicians) || technicians.length === 0) {
+    return "Belum ditugaskan";
+  }
+
+  return technicians.map(personName).join(", ");
+}
+
 export function isArchived(record) {
   return Boolean(record?.deleted_at);
 }

@@ -1,6 +1,13 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Ticket, Network, Users, UserCog } from "lucide-react";
+import {
+  History,
+  LayoutDashboard,
+  Ticket,
+  Network,
+  Users,
+  UserCog,
+} from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 
 const desktopItems = [
@@ -8,6 +15,7 @@ const desktopItems = [
   { name: "Tasks", path: "/tasks", icon: Ticket },
   { name: "Divisions", path: "/divisions", icon: Network },
   { name: "Clients", path: "/clients", icon: Users },
+  { name: "History", path: "/service-history", icon: History },
 ];
 
 const usersItem = { name: "Users", path: "/users", icon: UserCog };

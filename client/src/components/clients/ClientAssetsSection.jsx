@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Building2,
+  History,
   Pencil,
   Plus,
   RotateCcw,
@@ -123,38 +125,49 @@ export function ClientAssetsSection({
                   )}
                 </div>
 
-                {canWrite && (
-                  <div className="flex shrink-0 items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => openEditForm(asset)}
-                      className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                      aria-label={`Edit aset ${asset.name || ""}`}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Link
+                    to={`/service-history?clientId=${encodeURIComponent(clientId)}&assetId=${encodeURIComponent(asset.id)}`}
+                    className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-[#0284C7]"
+                    aria-label={`Riwayat servis aset ${asset.name || ""}`}
+                    title="Riwayat servis"
+                  >
+                    <History className="h-3.5 w-3.5" />
+                  </Link>
 
-                    {archived ? (
+                  {canWrite && (
+                    <>
                       <button
                         type="button"
-                        onClick={() => setRestoreTarget(asset)}
+                        onClick={() => openEditForm(asset)}
                         className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                        aria-label={`Pulihkan aset ${asset.name || ""}`}
+                        aria-label={`Edit aset ${asset.name || ""}`}
                       >
-                        <RotateCcw className="h-3.5 w-3.5" />
+                        <Pencil className="h-3.5 w-3.5" />
                       </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(asset)}
-                        className="rounded-lg p-1.5 text-rose-500 transition hover:bg-rose-50 hover:text-rose-600"
-                        aria-label={`Arsipkan aset ${asset.name || ""}`}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                )}
+
+                      {archived ? (
+                        <button
+                          type="button"
+                          onClick={() => setRestoreTarget(asset)}
+                          className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                          aria-label={`Pulihkan aset ${asset.name || ""}`}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(asset)}
+                          className="rounded-lg p-1.5 text-rose-500 transition hover:bg-rose-50 hover:text-rose-600"
+                          aria-label={`Arsipkan aset ${asset.name || ""}`}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
               </li>
             );
           })}

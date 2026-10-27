@@ -14,6 +14,7 @@ import TasksPage from "../pages/TasksPage";
 import ClientsPage from "../pages/ClientsPage";
 import UsersPage from "../pages/UsersPage";
 import NotificationsPage from "../pages/NotificationsPage";
+import ServiceHistoryPage from "../pages/ServiceHistoryPage";
 import { ClientDetailDrawer } from "../components/clients/ClientDetailDrawer";
 import { TaskDetailPage } from "../pages/TaskDetailPage";
 
@@ -52,14 +53,11 @@ export default function AppRoutes() {
             <Route element={<AdminRoute />}>
               <Route path="/users" element={<UsersPage />} />
             </Route>
+            <Route path="/service-history" element={<ServiceHistoryPage />} />
+            {/* SLA Reports masih future work; /reports dialihkan ke riwayat servis. */}
             <Route
               path="/reports"
-              element={
-                <GenericPage
-                  title="SLA Reports"
-                  description="Laporan kepatuhan SLA dan kecepatan resolusi tiket"
-                />
-              }
+              element={<Navigate to="/service-history" replace />}
             />
           </Route>
         </Route>
