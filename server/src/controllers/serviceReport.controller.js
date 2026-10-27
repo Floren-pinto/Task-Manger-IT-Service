@@ -165,3 +165,24 @@ export const getTaskReport = asyncHandler(async (req, res) => {
 
   return ok(res, data);
 });
+
+export const getServiceReport = asyncHandler(async (req, res) => {
+  const { reportId } = req.params;
+
+  if (!isUuid(reportId)) {
+    throw new ApiError(400, "Invalid report ID");
+  }
+
+  const { data, error } = await req.supabase
+    .from("service_reports")
+    .select(REPORT_DETAIL_COLUMNS)
+    .eq("id", reportId)
+    .maybeSingle();
+
+  if (error) {
+    throw new ApiError(500, "Failed to fetch service report");
+  }
+  if (!data) throw new ApiError(404, "Service report not found");
+
+  return ok(res, data);
+});
