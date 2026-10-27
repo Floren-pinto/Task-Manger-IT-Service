@@ -10,6 +10,7 @@ import {
   deleteTaskAttachment,
   listTaskAttachments,
 } from "../controllers/task.controller.js";
+import { taskReportRoutes } from "./serviceReport.routes.js";
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.patch("/:taskId/status", updateTaskStatus);
 router.get("/:taskId/attachments", listTaskAttachments);
 router.post("/:taskId/attachments", createTaskAttachment);
 router.delete("/:taskId/attachments/:attachmentId", deleteTaskAttachment);
+router.use("/:taskId/reports", taskReportRoutes);
 
 export default router;
