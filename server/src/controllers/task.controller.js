@@ -142,7 +142,7 @@ export const getTaskDetail = asyncHandler(async (req, res) => {
   const { data, error } = await req.supabase
     .from("tasks")
     .select(
-      `id, title, description, priority, status, due_date, created_at, updated_at, deleted_at,
+      `id, title, description, priority, status, due_date, completed_at, created_at, updated_at, deleted_at,
         createdBy:users!tasks_created_by_id_fkey (id, name, email),
         division:divisions!tasks_division_id_fkey (id, name),
         client:clients!tasks_client_id_fkey (id, name, contact, email, address, service_type),
