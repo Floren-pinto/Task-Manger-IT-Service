@@ -21,6 +21,11 @@ export async function signInService(email, password) {
   });
 }
 
+// Dipakai halaman reset password, saat user punya sesi dari tautan email.
+export async function updatePasswordService(password) {
+  return await supabase.auth.updateUser({ password });
+}
+
 export async function signOutService() {
   return await supabase.auth.signOut();
 }

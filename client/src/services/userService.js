@@ -24,7 +24,7 @@ export const updateUser = async (userId, payload) => {
 export const resetPassword = async (email) => {
   const redirectTo =
     typeof window !== "undefined"
-      ? `${window.location.origin}/login`
+      ? `${window.location.origin}/reset-password`
       : undefined;
 
   return supabase.auth.resetPasswordForEmail(email, { redirectTo });

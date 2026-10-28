@@ -8,6 +8,7 @@ import DashboardLayout from "../layouts/DashboardLayout";
 
 // Pages
 import LoginPage from "../pages/LoginPage";
+import ResetPasswordPage from "../pages/ResetPasswordPage";
 import DashboardPage from "../pages/DashboardPage";
 import GenericPage from "../pages/GenericPage";
 import TasksPage from "../pages/TasksPage";
@@ -30,6 +31,11 @@ export default function AppRoutes() {
           <Route element={<PublicLayout />}>
             <Route path="/login" element={<LoginPage />} />
           </Route>
+        </Route>
+
+        {/* Tanpa guard: diakses dengan sesi sementara dari tautan email reset password */}
+        <Route element={<PublicLayout />}>
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
         </Route>
 
         {/* Protected Routes */}

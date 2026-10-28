@@ -1,39 +1,48 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { Loading } from "../components/Loading";
 import { LogIn, ShieldCheck } from "lucide-react";
 
+// ?notice=... dikirim interceptor API dan halaman reset password.
+const NOTICES = {
+  inactive: {
+    tone: "error",
+    text: "Sesi Anda diakhiri karena akun tidak aktif. Hubungi administrator.",
+  },
+  "password-updated": {
+    tone: "success",
+    text: "Password berhasil diubah. Silakan masuk dengan password baru.",
+  },
+};
+
 export default function LoginPage() {
-  const { signIn, loading, setLoading } = useAuth();
+  const { signIn } = useAuth();
   const toast = useToast();
-  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const notice = NOTICES[searchParams.get("notice")];
 
+  // Setelah berhasil, PublicRoute mengarahkan ke halaman asal atau dashboard.
   const handleLogin = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    try {
-      const data = await signIn(email, password);
-      if (data.success) {
-        toast.success("Berhasil masuk ke IT Ops Center");
-        navigate("/dashboard");
-      } else {
-        toast.error(data.error?.message || "Gagal masuk. Silakan coba lagi.");
-      }
-    } catch (error) {
-      console.error("Login error:", error);
-      toast.error("Terjadi kesalahan saat mencoba masuk.");
-    } finally {
-      setLoading(false);
+    setSubmitting(true);
+    const result = await signIn(email, password);
+    setSubmitting(false);
+
+    if (result.success) {
+      toast.success("Berhasil masuk ke IT Ops Center");
+    } else {
+      toast.error(result.error?.message || "Gagal masuk. Silakan coba lagi.");
     }
   };
 
   return (
     <>
-      {loading && <Loading />}
+      {submitting && <Loading />}
 
       <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-xl w-full">
         <div className="text-center mb-6 sm:mb-8">
@@ -47,6 +56,19 @@ export default function LoginPage() {
             Sistem Manajemen Tiket & Penugasan Teknisi
           </p>
         </div>
+
+        {notice && (
+          <p
+            role={notice.tone === "error" ? "alert" : "status"}
+            className={`mb-4 rounded-lg border px-3 py-2 text-xs ${
+              notice.tone === "error"
+                ? "border-rose-200 bg-rose-50 text-rose-800"
+                : "border-emerald-200 bg-emerald-50 text-emerald-800"
+            }`}
+          >
+            {notice.text}
+          </p>
+        )}
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
@@ -77,11 +99,11 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={submitting}
             className="w-full bg-[#0EA5E9] hover:bg-[#0284C7] disabled:opacity-60 disabled:cursor-not-allowed text-white py-2.5 px-4 rounded-xl font-medium text-sm flex items-center justify-center gap-2 shadow-sm transition active:scale-[0.99]"
           >
             <LogIn className="w-4 h-4" />
-            {loading ? "Memverifikasi..." : "Masuk ke Dashboard"}
+            {submitting ? "Memverifikasi..." : "Masuk ke Dashboard"}
           </button>
         </form>
       </div>

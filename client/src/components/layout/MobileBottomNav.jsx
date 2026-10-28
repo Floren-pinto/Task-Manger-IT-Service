@@ -21,8 +21,8 @@ const desktopItems = [
 const usersItem = { name: "Users", path: "/users", icon: UserCog };
 
 export default function MobileBottomNav() {
-  const { userProfile } = useAuth();
-  const isSuperAdmin = userProfile?.role === "SUPER_ADMIN";
+  const { role } = useAuth();
+  const isSuperAdmin = role === "SUPER_ADMIN";
 
   const mobileNavItems = isSuperAdmin
     ? desktopItems.map((item) =>
