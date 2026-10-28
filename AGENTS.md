@@ -67,6 +67,10 @@ RLS adalah sumber kebenaran; pengecekan role di server/client hanya untuk UX dan
 
 | File | Kapan dibaca |
 |---|---|
+| `docs/README.md` | Indeks semua dokumen |
+| `docs/erd.md`, `docs/database.md` | Menyentuh skema, relasi, RLS, trigger, function |
+| `docs/architecture.md` | Perlu gambaran alur request/auth/upload/realtime |
+| `docs/roadmap.md` | Memilih pekerjaan berikutnya; centang item yang selesai |
 | `docs/srs.md` | Kebutuhan fungsional (FR-xx), scope fitur |
 | `docs/RBAC.md` | Menyentuh hak akses, RLS, policy |
 | `docs/api-contract.md` | Menambah/mengubah endpoint |
