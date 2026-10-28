@@ -89,16 +89,16 @@ Pendamping: [architecture.md §7](architecture.md#7-arsitektur-client-alur-data)
 
 Pilih **Service Report** dan telusuri semua lapisannya, lalu isi tabel ini sendiri:
 
-| Lapisan | File | Apa yang dilakukan |
-|---|---|---|
-| Tabel | `service_reports` | ... |
-| Policy | `08_service_reports_policy.sql` | ... |
-| Route | `serviceReport.routes.js` | ... |
-| Controller | `serviceReport.controller.js` | ... |
-| Util | `serviceReportSnapshot.js` | ... |
-| Service | `serviceReportService.js` | ... |
-| Hook | `useTaskReports.js`, `useServiceReport.js` | ... |
-| Komponen | `TaskReportsSection.jsx`, `TaskReportDialog.jsx` | ... |
+| Lapisan    | File                                             | Apa yang dilakukan |
+| ---------- | ------------------------------------------------ | ------------------ |
+| Tabel      | `service_reports`                                | ...                |
+| Policy     | `08_service_reports_policy.sql`                  | ...                |
+| Route      | `serviceReport.routes.js`                        | ...                |
+| Controller | `serviceReport.controller.js`                    | ...                |
+| Util       | `serviceReportSnapshot.js`                       | ...                |
+| Service    | `serviceReportService.js`                        | ...                |
+| Hook       | `useTaskReports.js`, `useServiceReport.js`       | ...                |
+| Komponen   | `TaskReportsSection.jsx`, `TaskReportDialog.jsx` | ...                |
 
 Ulangi untuk **Notifikasi** (termasuk Realtime) — ini fitur yang paling banyak melibatkan database.
 
