@@ -7,10 +7,22 @@ import {
   localDayEndUtc,
   localDayStartUtc,
 } from "../utils/dateTime.js";
-import { isUuid, parsePaginationParams } from "../utils/queryParams.js";
+import {
+  isUuid,
+  parsePaginationParams,
+  sanitizeSearch,
+} from "../utils/queryParams.js";
 
 const EXPORT_MAX_ROWS = 5000;
 const CLIENT_SEARCH_MAX_MATCHES = 100;
+// Daftar ID dikirim lewat URL (`in.(...)`); dipotong agar tidak melewati
+// batas panjang URL gateway Supabase.
+const REPORT_ID_CHUNK_SIZE = 200;
+
+// Embed kedua khusus filter teknisi: `!inner` membuang task tanpa assignment
+// teknisi itu, sementara embed `assignments` tetap berisi semua teknisi.
+const TECHNICIAN_FILTER_EMBED =
+  "technician_filter:task_assignments!inner(user_id)";
 
 const HISTORY_TASK_COLUMNS = `id, title, description, status, priority, due_date, completed_at,
   client:clients!tasks_client_id_fkey (id, name, contact, email, address, service_type),
@@ -21,15 +33,6 @@ const HISTORY_TASK_COLUMNS = `id, title, description, status, priority, due_date
   )`;
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-function sanitizeKeyword(value) {
-  return String(value)
-    .trim()
-    .replace(/^#/, "")
-    .replace(/[,()%"*]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 function parseDateFilter(value, field) {
   if (value === undefined || value === "") return undefined;
@@ -57,14 +60,13 @@ function parseIdFilter(value, field) {
 
 function parseHistoryFilters(query) {
   const filters = {
-    keyword: query.search ? sanitizeKeyword(query.search) : "",
+    keyword: query.search
+      ? sanitizeSearch(query.search, { stripHash: true })
+      : "",
     clientId: parseIdFilter(query.clientId, "clientId"),
     assetId: parseIdFilter(query.assetId, "assetId"),
     divisionId: parseIdFilter(query.divisionId, "divisionId"),
-    technicianId:
-      query.technicianId === undefined || query.technicianId === ""
-        ? undefined
-        : String(query.technicianId),
+    technicianId: parseIdFilter(query.technicianId, "technicianId"),
     completedFrom: parseDateFilter(query.completedFrom, "completedFrom"),
     completedTo: parseDateFilter(query.completedTo, "completedTo"),
     ascending: String(query.sortOrder).toLowerCase() === "asc",
@@ -81,13 +83,17 @@ function parseHistoryFilters(query) {
   return filters;
 }
 
-// Mengembalikan { query } berisi task selesai yang sudah difilter, atau { query: null }
-// bila filter teknisi tidak cocok. Builder dibungkus objek karena builder Supabase
-// bersifat thenable dan akan langsung dieksekusi jika dikembalikan dari fungsi async.
+// Mengembalikan { query } berisi task selesai yang sudah difilter. Builder
+// dibungkus objek karena builder Supabase bersifat thenable dan akan langsung
+// dieksekusi jika dikembalikan dari fungsi async.
 async function buildHistoryQuery(supabase, filters, countOptions) {
+  const columns = filters.technicianId
+    ? `${HISTORY_TASK_COLUMNS}, ${TECHNICIAN_FILTER_EMBED}`
+    : HISTORY_TASK_COLUMNS;
+
   let query = supabase
     .from("tasks")
-    .select(HISTORY_TASK_COLUMNS, countOptions)
+    .select(columns, countOptions)
     .eq("status", "COMPLETED")
     .is("deleted_at", null)
     .order("completed_at", {
@@ -132,21 +138,7 @@ async function buildHistoryQuery(supabase, filters, countOptions) {
   }
 
   if (filters.technicianId) {
-    const { data: assignments, error: assignmentError } = await supabase
-      .from("task_assignments")
-      .select("task_id")
-      .eq("user_id", filters.technicianId);
-
-    if (assignmentError) {
-      throw new ApiError(500, "Failed to filter service history by technician");
-    }
-
-    const taskIds = [
-      ...new Set((assignments ?? []).map((assignment) => assignment.task_id)),
-    ];
-    if (taskIds.length === 0) return { query: null };
-
-    query = query.in("id", taskIds);
+    query = query.eq("technician_filter.user_id", filters.technicianId);
   }
 
   return { query };
@@ -164,25 +156,28 @@ function handleHistoryQueryError(error) {
 
 // Satu task boleh punya beberapa report; riwayat menampilkan yang terbaru.
 async function fetchLatestReports(supabase, taskIds) {
-  if (taskIds.length === 0) return new Map();
-
-  const { data, error } = await supabase
-    .from("service_reports")
-    .select(
-      "id, task_id, summary, action_taken, notes, created_at, created_by_id",
-    )
-    .in("task_id", taskIds)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    throw new ApiError(500, "Failed to fetch service reports");
-  }
-
   const latestByTask = new Map();
-  for (const report of data ?? []) {
-    if (!latestByTask.has(report.task_id)) {
-      const { task_id: _taskId, ...rest } = report;
-      latestByTask.set(report.task_id, rest);
+
+  for (let start = 0; start < taskIds.length; start += REPORT_ID_CHUNK_SIZE) {
+    const chunk = taskIds.slice(start, start + REPORT_ID_CHUNK_SIZE);
+    const { data, error } = await supabase
+      .from("service_reports")
+      .select(
+        "id, task_id, summary, action_taken, notes, created_at, created_by_id",
+      )
+      .in("task_id", chunk)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw new ApiError(500, "Failed to fetch service reports");
+    }
+
+    // Satu task selalu berada dalam satu potongan, jadi baris pertama = terbaru.
+    for (const report of data ?? []) {
+      if (!latestByTask.has(report.task_id)) {
+        const { task_id: _taskId, ...rest } = report;
+        latestByTask.set(report.task_id, rest);
+      }
     }
   }
 
@@ -225,15 +220,9 @@ export const listServiceHistory = asyncHandler(async (req, res) => {
     req.query.limit,
   );
 
-  const emptyPage = {
-    history: [],
-    pagination: { page: safePage, limit: safeLimit, total: 0, totalPages: 0 },
-  };
-
   const { query } = await buildHistoryQuery(req.supabase, filters, {
     count: "exact",
   });
-  if (!query) return ok(res, emptyPage);
 
   const { data, count, error } = await query.range(from, to);
   if (error) handleHistoryQueryError(error);
@@ -259,14 +248,14 @@ function formatExportDate(date) {
 export const exportServiceHistory = asyncHandler(async (req, res) => {
   const filters = parseHistoryFilters(req.query);
 
-  const { query } = await buildHistoryQuery(req.supabase, filters);
+  const { query } = await buildHistoryQuery(req.supabase, filters, {
+    count: "exact",
+  });
 
-  let history = [];
-  if (query) {
-    const { data, error } = await query.range(0, EXPORT_MAX_ROWS - 1);
-    if (error) handleHistoryQueryError(error);
-    history = await loadHistoryItems(req.supabase, data ?? []);
-  }
+  const { data, count, error } = await query.range(0, EXPORT_MAX_ROWS - 1);
+  if (error) handleHistoryQueryError(error);
+  const history = await loadHistoryItems(req.supabase, data ?? []);
+  const total = count ?? history.length;
 
   const csv = toCsv(
     [
@@ -306,5 +295,8 @@ export const exportServiceHistory = asyncHandler(async (req, res) => {
   res.status(200);
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  // Diekspos lewat CORS (app.js) agar client bisa memberi tahu bila hasil terpotong.
+  res.setHeader("X-Export-Total", String(total));
+  res.setHeader("X-Export-Truncated", String(total > history.length));
   return res.send(csv);
 });

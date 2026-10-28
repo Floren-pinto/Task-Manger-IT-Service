@@ -5,10 +5,15 @@ export function isUuid(value) {
   return typeof value === "string" && UUID_PATTERN.test(value);
 }
 
-export function sanitizeSearch(value) {
-  return String(value)
-    .trim()
-    .replace(/[,()%"]/g, " ")
+// Membuang karakter yang punya arti di filter PostgREST: pemisah `or()` (`,` `(`
+// `)`), kutip, dan wildcard (`%` `*`), serta backslash. `stripHash` membuang `#`
+// di depan agar ID task yang ditampilkan "#ABCD1234" tetap bisa dicari.
+export function sanitizeSearch(value, { stripHash = false } = {}) {
+  let text = String(value).trim();
+  if (stripHash) text = text.replace(/^#/, "");
+
+  return text
+    .replace(/[,()%"*\\]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

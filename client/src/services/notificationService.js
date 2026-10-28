@@ -22,7 +22,7 @@ export const getUnreadCount = async () => {
 
 export const markNotificationRead = async (notificationId) => {
   const response = await api.patch(`/notifications/${notificationId}`);
-  return response.data?.data?.notification;
+  return response.data?.data;
 };
 
 export const markAllNotificationsRead = async () => {

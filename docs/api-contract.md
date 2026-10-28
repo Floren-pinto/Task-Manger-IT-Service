@@ -161,7 +161,7 @@ Login/logout dilakukan **FE langsung ke Supabase Auth** (bukan endpoint Express)
 | `status` | `TaskStatus` | satu nilai, `.eq` |
 | `priority` | `Priority` | satu nilai, `.eq` |
 | `divisionId`, `clientId` | uuid | |
-| `technicianId` | uuid | pre-query `task_assignments.user_id`, lalu filter `tasks.id in (...)`; jika tidak ada assignment → list kosong |
+| `technicianId` | uuid | bukan UUID → 400; difilter dengan embed `task_assignments!inner` (tanpa daftar ID di URL), daftar `assignments` tetap berisi semua teknisi |
 | `dueFrom`, `dueTo` | tanggal / ISO | `YYYY-MM-DD` dibaca sebagai hari WIB lalu dikonversi ke UTC (kolom DB menyimpan UTC tanpa zona); filter `due_date` |
 | `search` | string | `ilike` pada `title` atau `id`; prefix `#` dibuang; karakter `,()%"` disanitasi |
 | `sortBy` | `due_date` \| lainnya | hanya `due_date` yang dikenali; selain itu `created_at` |
@@ -182,23 +182,23 @@ Login/logout dilakukan **FE langsung ke Supabase Auth** (bukan endpoint Express)
 - Error: 400 `"Invalid filter value"` / `"Invalid date filter"`; 500 `"Failed to fetch tasks"`.
 
 ### `POST /api/tasks` ✅
-- Role: TECHNICIAN ditolak app layer (403); role lain mengikuti RLS insert (`role != TECHNICIAN`). Tidak ada pengecekan divisi MANAGER_DIVISION di app layer.
+- Role: TECHNICIAN ditolak app layer (403); role lain mengikuti RLS insert (SUPER_ADMIN, MANAGER_DIVISION, STAFF, dan `created_by_id = auth.uid()`). Tidak ada pengecekan divisi MANAGER_DIVISION di app layer.
 - Body:
 
 | Field | Tipe | Wajib | Catatan |
 |---|---|---|---|
-| `title` | string | ✓ | |
-| `description` | string | ✓ | |
-| `divisionId` | uuid | ✓ | |
-| `clientId` | uuid | ✓ | |
-| `priority` | `Priority` | ✗ | default DB `MEDIUM` |
+| `title` | string | ✓ | di-`trim`, maks 200 |
+| `description` | string | ✓ | di-`trim`, maks 5000 |
+| `divisionId` | uuid | ✓ | bukan UUID → 400 |
+| `clientId` | uuid | ✓ | bukan UUID → 400 |
+| `priority` | `Priority` | ✗ | `LOW`/`MEDIUM`/`HIGH`/`URGENT`, selain itu 400; default DB `MEDIUM` |
 | `dueDate` | ISO string / null | ✗ | |
 | `assetId` | uuid / null | ✗ | |
 
 - `status` tidak dibaca dari body (default DB `PENDING`); `created_by_id` diambil dari token.
-- 201: `data` = **baris `tasks` mentah** (snake_case, tanpa relasi), message `"Task created"`
+- 201: `data` = baris `tasks` (kolom `TASK_ROW_COLUMNS`, tanpa relasi), message `"Task created"`
 - `assetId` (bila diisi) harus milik `clientId` dan tidak diarsip.
-- Error: 400 field wajib; 400 `"Asset does not belong to the selected client"` / `"Asset is archived"` / `"Invalid assetId"`; 400 `"Invalid divisionId, clientId, or assetId"` (23503); 400 `"Invalid priority value"` (22P02 — juga bisa muncul untuk UUID malformed, temuan #29); 403 TECHNICIAN; 500.
+- Error: 400 field wajib; 400 `"Asset does not belong to the selected client"` / `"Asset is archived"` / `"Invalid assetId"`; 400 `"Invalid divisionId, clientId, or assetId"` (23503); 400 `"Invalid divisionId"`/`"Invalid clientId"`/priority/teks (validasi app, temuan #29 selesai); 403 TECHNICIAN / `42501`; 500.
 
 ### `GET /api/tasks/:taskId` ✅
 - 200: `data` =
@@ -243,9 +243,11 @@ Login/logout dilakukan **FE langsung ke Supabase Auth** (bukan endpoint Express)
 ### `PATCH /api/tasks/:taskId/status` ✅
 - Role: STAFF ditolak app layer (403); SUPER_ADMIN, MANAGER_DIVISION, dan TECHNICIAN (divisi sendiri) dapat mengubah status.
 - Body: `{ "newStatus": TaskStatus }` — **bukan** `status`.
-- Alur: memanggil RPC `update_task_status(p_task_id, p_new_status)`. RPC memastikan task ada, status berbeda, lalu mengubah `tasks.status` dan menulis `task_status_history` dengan `auth.uid()`.
+- Alur: memanggil RPC `update_task_status(p_task_id, p_new_status)` (`SECURITY DEFINER`). RPC memeriksa role (STAFF/nonaktif → `42501`), memastikan task terlihat (TECHNICIAN: divisi sendiri & tidak dihapus; selain itu `P0002`), status berbeda (`22023`), lalu mengubah `tasks.status` dan menulis `task_status_history` dengan `auth.uid()`.
+- **Status hanya bisa berubah lewat RPC ini**: trigger `enforce_task_column_restrictions` menolak `UPDATE tasks SET status` langsung untuk semua role, dan `task_status_history` tidak punya policy INSERT, sehingga riwayat & notifikasi selalu tercatat.
+- Server memetakan kode error (bukan isi pesan): `P0002` → 404, `22023` → 400, `22P02` → 400, `42501` → 403.
 - Tidak ada matriks transisi status; semua status berbeda yang valid diterima (mis. `COMPLETED` → `IN_PROGRESS`).
-- 200: `data` = **baris `tasks` mentah (`select *`)**, message `"Task status updated"`
+- 200: `data` = baris `tasks` (kolom `TASK_ROW_COLUMNS`: `id, title, description, priority, status, due_date, completed_at, division_id, client_id, asset_id, created_by_id, created_at, updated_at, deleted_at`), message `"Task status updated"`
 - Error: 400 status sama / status invalid; 403 tidak diizinkan; 404 task tidak ditemukan; 500.
 - Side effect: notifikasi `STATUS_CHANGE` untuk assignee dan manager divisi yang aktif, kecuali pelaku perubahan.
 
@@ -255,20 +257,21 @@ Login/logout dilakukan **FE langsung ke Supabase Auth** (bukan endpoint Express)
 - `deleted` harus boolean; `deleted: true` mengisi `deleted_at`, `false` mengosongkan.
 - Minimal satu field; field tak dikenal diabaikan (jika semua tak dikenal → 400).
 - `dueDate: null` dan `assetId: null` mengosongkan nilai.
+- Validasi sama dengan `POST`: `title`/`description` bila dikirim tidak boleh kosong (maks 200/5000), `priority` harus enum, `divisionId`/`clientId`/`assetId` harus UUID.
 - Otorisasi: **app layer tidak memeriksa role per field**; RLS + trigger `enforce_task_column_restrictions` yang menentukan:
 
 | Role | Field yang diizinkan trigger |
 |---|---|
 | SUPER_ADMIN / MANAGER_DIVISION | semua kolom |
 | STAFF | `priority`, `due_date`, `updated_at` |
-| TECHNICIAN | `status`, `description`, `updated_at`; `status` ditolak app layer, jadi efektif `description` |
+| TECHNICIAN | `description`, `updated_at` (perubahan `status` hanya lewat RPC `update_task_status`, untuk semua role) |
 
 - RLS juga membatasi STAFF/TECHNICIAN ke task yang belum soft-deleted dan TECHNICIAN ke divisinya.
 - `divisionId` **boleh diubah** oleh SUPER_ADMIN/MANAGER_DIVISION (berbeda dari desain awal D1).
 - Bila `clientId` atau `assetId` dikirim, pasangan akhirnya (digabung dengan nilai task saat ini) divalidasi: asset harus milik client → 400 `"Asset does not belong to the selected client"`. Asset baru yang diarsip ditolak; asset lama yang kemudian diarsip boleh dipertahankan.
 - Tidak ada larangan edit task `COMPLETED`/`CANCELLED`.
-- 200: baris `tasks` mentah, message `"Task updated successfully"` atau `"Task deleted successfully"`.
-- Error: 400 (body kosong, `deleted` bukan boolean, `status`, referensi invalid, NOT NULL, tanggal/priority invalid; 22P02 selalu dipetakan sebagai `"Invalid priority value"` meskipun penyebabnya UUID malformed, temuan #29); 403 (`P0001`/`42501`); 404 (`PGRST116`); 500.
+- 200: baris `tasks` (kolom `TASK_ROW_COLUMNS`), message `"Task updated successfully"` atau `"Task deleted successfully"`.
+- Error: 400 (body kosong, validasi field, `status`, referensi invalid, NOT NULL, tanggal invalid, sisa 22P02 → `"Invalid field value"`); 403 (`P0001`/`42501`); 404 (`PGRST116`); 500.
 
 ### `GET /api/tasks/:taskId/attachments` ✅
 - 200: `data` = **array langsung**, urut `uploaded_at` desc
@@ -331,7 +334,7 @@ Belum termasuk: notifikasi `DEADLINE_REMINDER` otomatis (butuh scheduler `pg_cro
 ### `PATCH /api/notifications/:id` ✅
 - Tanpa body; selalu menandai `is_read = true` (tidak bisa un-read: dibatasi RLS `WITH CHECK` + column grant).
 - `id` bukan UUID → 400 `"Invalid notification ID"`.
-- 200: `data` = `{ notification: {...} }` 🐞 (satu-satunya update yang membungkus objek; dipertahankan demi kompatibilitas)
+- 200: `data` = objek notifikasi langsung (seragam dengan endpoint update lain).
 - Error: 404 `"Notification not found"` (termasuk notifikasi milik user lain); 500 `"Failed to update notification"`.
 
 ---
@@ -360,25 +363,26 @@ Visibility (RLS): TECHNICIAN & STAFF hanya baris aktif (`deleted_at IS NULL`); M
 ### `POST /api/clients` ✅
 - Role (RLS): semua kecuali TECHNICIAN.
 - Body: `{ name, contact, email?, address, serviceType }`; semua string di-`trim`; `email` opsional dan kosong → `null`.
-- Field wajib: `name`, `contact`, `address`, `serviceType`. Email bila diisi harus valid.
-- 201: baris `clients` mentah, message `"Client created successfully"`.
-- Error: 400 validasi (`"name, contact, address, and serviceType are required"`, `"email must be a valid email address"`); 403 `"You are not allowed to create a client"` (42501); 500.
+- Field wajib (maks panjang): `name` (200), `contact` (100), `address` (500), `serviceType` (100); `email` (254) bila diisi harus valid.
+- 201: baris `clients` (kolom `CLIENT_COLUMNS`), message `"Client created successfully"`.
+- Error: 400 validasi (`"<field> is required"`, `"<field> must be at most N characters"`, `"email must be a valid email address"`); 403 `"You are not allowed to create a client"` (42501); 500.
 
 ### `PATCH /api/clients/:clientId` ✅
 - Body parsial `{ name?, contact?, email?, address?, serviceType?, deleted? }`; minimal satu field; semua string di-`trim`.
 - `email` hanya masuk payload bila dikirim (`email !== undefined`); `""`/spasi → `null` (temuan #20 selesai).
-- `deleted`: `true` = soft delete, `false` = restore. Hanya diterapkan jika bertipe boolean.
+- Field yang dikirim divalidasi seperti `POST`: string kosong untuk field wajib → 400 (sebelumnya diam-diam diabaikan).
+- `deleted`: `true` = soft delete, `false` = restore; bukan boolean → 400.
 - Role: TECHNICIAN ditolak app layer (403); STAFF boleh update baris aktif tetapi **tidak boleh** `deleted: true` (403); MANAGER_DIVISION/SUPER_ADMIN boleh update dan soft delete/restore.
 - RLS juga menolak STAFF/TECHNICIAN mengedit baris soft-deleted.
 - `clientId` bukan UUID → 400 `"Invalid client ID"`.
-- 200: baris `clients` mentah; message `"Client updated successfully"` / `"Client deleted successfully"` / `"Client restored successfully"`.
+- 200: baris `clients` (kolom `CLIENT_COLUMNS`); message `"Client updated successfully"` / `"Client deleted successfully"` / `"Client restored successfully"`.
 - Error: 400 tidak ada field; 403 `"You are not allowed to update this client"` (42501); 404 `"Client not found"` (PGRST116); 500.
 
 ---
 
 ## 6. Assets
 
-Visibility (RLS, diperbarui): STAFF & TECHNICIAN hanya melihat asset aktif (`deleted_at IS NULL`); SUPER_ADMIN & MANAGER_DIVISION boleh melihat asset arsip. Policy INSERT/UPDATE tetap `TRUE` untuk semua authenticated (temuan #19 selesai).
+Visibility (RLS, diperbarui): STAFF & TECHNICIAN hanya melihat asset aktif (`deleted_at IS NULL`); SUPER_ADMIN & MANAGER_DIVISION boleh melihat asset arsip. Hak tulis mengikuti `clients`: TECHNICIAN hanya baca, STAFF tidak boleh arsip/pulihkan.
 
 ### `GET /api/assets` ✅
 - Query: `page`, `limit`, `search`, `clientId`, `includeDeleted`
@@ -394,18 +398,18 @@ Visibility (RLS, diperbarui): STAFF & TECHNICIAN hanya melihat asset aktif (`del
 - Not found: `.single()` → PGRST116 → 404 `"Asset not found"`; error lain → 500 `"Failed to fetch asset detail"`.
 
 ### `POST /api/assets` ✅
-- Body: `{ name, type, clientId, serialNumber? }`; string di-`trim`; `serialNumber` kosong → `null`.
+- Body: `{ name, type, clientId, serialNumber? }`; string di-`trim`; `name` maks 200, `type` maks 100, `serialNumber` maks 100 (kosong → `null`).
 - `clientId` wajib dan harus UUID → 400 `"Invalid client ID"`.
 - Role: TECHNICIAN → 403 (app layer + RLS).
-- 201: baris `assets` mentah, message `"Asset created successfully"`.
+- 201: baris `assets` (kolom `ASSET_COLUMNS`), message `"Asset created successfully"`.
 - Error: 400 field wajib; 400 `"Invalid client ID"` (23503); 403 TECHNICIAN / `42501`; 500.
 
 ### `PATCH /api/assets/:assetId` ✅
-- Body parsial: `name`, `serialNumber` (`""` → `null`), `type`, `clientId`, `deleted` (boolean); minimal satu field.
+- Body parsial: `name`, `serialNumber` (`""` → `null`), `type`, `clientId`, `deleted` (boolean); minimal satu field. Field wajib yang dikirim kosong, `clientId` bukan UUID, atau `deleted` bukan boolean → 400.
 - Role: TECHNICIAN → 403; STAFF mengirim `deleted` → 403 (tidak boleh arsip/pulihkan); SUPER_ADMIN & MANAGER_DIVISION semua.
 - `assetId`/`clientId` bukan UUID → 400 `"Invalid asset ID"` / `"Invalid client ID"`.
 - Pindah ke client lain ditolak 409 bila asset sudah dipakai task (task lama akan menunjuk asset milik client lain).
-- 200: baris `assets` mentah, message `"Asset updated successfully"` / `"Asset deleted successfully"` / `"Asset restored successfully"`.
+- 200: baris `assets` (kolom `ASSET_COLUMNS`), message `"Asset updated successfully"` / `"Asset deleted successfully"` / `"Asset restored successfully"`.
 - Error: 400 tidak ada field / `"Invalid client ID"` (23503); 403 role / `"You are not allowed to update this asset"` (42501); 404 `"Asset not found"` (PGRST116); 409 asset sudah dipakai task; 500.
 
 ### Policy `03_assets_policy.sql` ✅
@@ -576,7 +580,7 @@ Report bersifat **immutable** (RLS tidak punya policy UPDATE/DELETE, dan tidak a
 
 Daftar **task selesai** (bukan daftar report). Mount `/service-history` memakai `requireAuth` + `attachProfile`; RLS `tasks` membatasi hasil (TECHNICIAN hanya divisinya).
 
-- Query: `search` (judul, ID task, atau nama client), `clientId`, `assetId`, `divisionId` (UUID; selain itu → 400), `technicianId`, `completedFrom`/`completedTo` (`YYYY-MM-DD`, hari WIB; format salah atau from > to → 400), `page` (default 1), `limit` (default 20, maks 100), `sortOrder=desc|asc` (berdasarkan `completed_at`, default `desc`).
+- Query: `search` (judul, ID task, atau nama client), `clientId`, `assetId`, `divisionId` (UUID; selain itu → 400), `technicianId` (UUID; difilter dengan embed `!inner`), `completedFrom`/`completedTo` (`YYYY-MM-DD`, hari WIB; format salah atau from > to → 400), `page` (default 1), `limit` (default 20, maks 100), `sortOrder=desc|asc` (berdasarkan `completed_at`, default `desc`).
 - Hanya `status = COMPLETED` dan `deleted_at IS NULL`; filter tanggal memakai `completed_at`.
 - `report` = report **terbaru** task tersebut (tanpa `snapshot_data`) atau `null` bila belum ada; task tanpa report tetap tampil.
 - 200:
@@ -599,6 +603,7 @@ Daftar **task selesai** (bukan daftar report). Mount `/service-history` memakai 
 
 - Query sama dengan list tanpa `page`/`limit`; maksimal 5000 baris.
 - 200: `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="service-history-YYYYMMDD.csv"` (header ini diekspos lewat CORS `exposedHeaders`).
+- Maksimal 5000 baris. Header `X-Export-Total` (jumlah baris yang cocok) dan `X-Export-Truncated` (`true` bila hasil dipotong) ikut diekspos; FE menampilkan peringatan bila terpotong. Report terbaru diambil per 200 task agar URL tidak melewati batas gateway.
 - Kolom: Task ID, Title, Client, Asset, Division, Technicians, Completed At (WIB, `YYYY-MM-DD HH:mm:ss`), Priority, Summary, Action Taken, Notes (report terbaru).
 - Setiap sel dibungkus `"` dengan `"` di-escape menjadi `""`; sel yang diawali `=`, `+`, `-`, `@`, tab, atau CR diberi prefix `'` (cegah formula injection). File diawali BOM UTF-8 agar terbaca benar di Excel.
 - Error validasi/DB dikirim sebagai JSON sebelum header CSV dikirim.
@@ -736,7 +741,7 @@ Status: **Masih** = perlu tindakan; **Selesai** = sudah sesuai implementasi; **S
 | # | Temuan | Status | Dampak / catatan |
 |---|---|---|---|
 | 1 | `ok()`/`created()` status code | ✅ Selesai | `ok` = 200, `created` = 201. |
-| 2 | Bentuk `data` tidak seragam: list ber-key (`tasks`, `clients`, `assets`, `notifications`) vs array langsung (`users`, `divisions`, attachments) vs update yang membungkus (`{ notification }`) vs key camelCase dashboard | 🐞 Masih | Setiap fitur butuh handling berbeda di FE; sulit membuat hook list generik. |
+| 2 | Bentuk `data` tidak seragam: list ber-key (`tasks`, `clients`, `assets`, `notifications`) vs array langsung (`users`, `divisions`, attachments) vs key camelCase dashboard | 🐞 Sebagian (update `{ notification }` sudah diseragamkan) | Setiap fitur butuh handling berbeda di FE; sulit membuat hook list generik. |
 | 3 | Request camelCase, response snake_case, alias relasi camelCase | 🐞 Masih | FE harus mapping manual, rawan salah nama field. |
 | 4 | `deleted_at` tidak dikembalikan di list/detail clients & assets | 🐞 Masih | FE tidak bisa menampilkan status "dihapus" atau tombol restore. |
 | 5 | `getClientDetail` memilih `assets.description` (kolom tidak ada di schema) | 🐞 Masih | Endpoint berpotensi 500. Ganti ke `serial_number, type`. |

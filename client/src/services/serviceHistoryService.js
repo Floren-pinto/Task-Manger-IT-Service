@@ -34,8 +34,11 @@ export const exportServiceHistory = async (params = {}) => {
     const disposition = response.headers?.["content-disposition"] || "";
     const filename =
       disposition.match(FILENAME_PATTERN)?.[1] || "service-history.csv";
+    // Server membatasi jumlah baris export; header ini menandai hasil terpotong.
+    const truncated = response.headers?.["x-export-truncated"] === "true";
+    const total = Number(response.headers?.["x-export-total"]) || null;
 
-    return { blob: response.data, filename };
+    return { blob: response.data, filename, truncated, total };
   } catch (error) {
     const message = await readBlobErrorMessage(error);
     if (message) error.message = message;

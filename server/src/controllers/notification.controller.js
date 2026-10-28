@@ -98,5 +98,5 @@ export const updateIsReadNotification = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Notification not found");
   }
 
-  return ok(res, { notification: data });
+  return ok(res, data);
 });
