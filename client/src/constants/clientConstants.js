@@ -6,12 +6,14 @@ export const clientCreateRoles = new Set([
 
 export const clientDeleteRoles = new Set(["SUPER_ADMIN", "MANAGER_DIVISION"]);
 
+// Sama dengan clients (lihat RLS 03_assets_policy.sql).
 export const assetWriteRoles = new Set([
   "SUPER_ADMIN",
   "MANAGER_DIVISION",
   "STAFF",
-  "TECHNICIAN",
 ]);
+
+export const assetArchiveRoles = new Set(["SUPER_ADMIN", "MANAGER_DIVISION"]);
 
 export const clientStatusLabels = {
   active: "Aktif",

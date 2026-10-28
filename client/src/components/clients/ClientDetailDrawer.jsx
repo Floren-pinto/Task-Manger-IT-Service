@@ -19,6 +19,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useClientDetail } from "../../hooks/useClientDetail";
 import { useClientMutations } from "../../hooks/useClientMutations";
 import {
+  assetArchiveRoles,
   assetWriteRoles,
   clientCreateRoles,
   clientDeleteRoles,
@@ -56,17 +57,13 @@ export function ClientDetailDrawer() {
   const { clientId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { userProfile } = useAuth();
+  const { role: userRole } = useAuth();
 
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [showArchivedAssets, setShowArchivedAssets] = useState(false);
 
-  const userRole =
-    typeof userProfile?.role === "string"
-      ? userProfile.role.toUpperCase()
-      : "";
   const canEdit = clientCreateRoles.has(userRole);
   const canManageArchive = clientDeleteRoles.has(userRole);
   const canViewArchivedAssets = canManageArchive;
@@ -293,6 +290,7 @@ export function ClientDetailDrawer() {
             clientId={client.id}
             assets={assets}
             canWrite={assetWriteRoles.has(userRole)}
+            canArchive={assetArchiveRoles.has(userRole)}
             canViewArchived={canViewArchivedAssets}
             showArchived={showArchivedAssets}
             onToggleArchived={setShowArchivedAssets}

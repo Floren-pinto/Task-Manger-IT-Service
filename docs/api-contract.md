@@ -126,7 +126,7 @@ Login/logout dilakukan **FE langsung ke Supabase Auth** (bukan endpoint Express)
 
 ### `POST /api/users` — hanya SUPER_ADMIN
 - Body: `name` (wajib), `email` (wajib, unik), `password` (wajib, min 8 karakter), `role` (wajib), `divisionId` (wajib untuk `TECHNICIAN`/`MANAGER_DIVISION`; boleh `null` untuk `SUPER_ADMIN`/`STAFF`).
-- Alur: validasi → cek divisi → `auth.admin.createUser({ email, password, email_confirm: true })` → update profil `users` (trigger `handle_new_auth_user` membuat baris default `TECHNICIAN`).
+- Alur: validasi → cek divisi → `auth.admin.createUser({ email, password, email_confirm: true })` → update profil `users` (trigger `handle_new_auth_user` membuat baris default `TECHNICIAN` dengan `is_active = false`; langkah update ini yang mengaktifkannya).
 - Kompensasi: jika update profil gagal → `auth.admin.deleteUser(id)`. Password tidak pernah dikembalikan atau di-log.
 - 201: `data` = profil user (bentuk sama dengan `GET`), message `"User created successfully"`.
 - Error: 400 · 403 (bukan SUPER_ADMIN) · 409 (email terdaftar) · 500 · 503 (service role key belum dikonfigurasi).
@@ -605,7 +605,7 @@ Kontrak aktual ada di **Bagian 2**. Ringkasan keputusan implementasi:
 - `POST /api/users` dan `PATCH /api/users/:userId` hanya SUPER_ADMIN (`requireSuperAdmin`); `GET /api/users` tetap untuk semua role dengan pembatasan RLS.
 - Create memakai Supabase Auth Admin + kompensasi `deleteUser` bila update profil gagal. Tanpa `SUPABASE_SERVICE_ROLE_KEY`, create mengembalikan **503**. Update/arsip/nonaktif tidak butuh service role (cukup RLS SUPER_ADMIN).
 - PATCH menolak perubahan role/status milik sendiri, menolak menonaktifkan SUPER_ADMIN aktif terakhir, dan menolak pindah divisi bila user masih punya task aktif.
-- Email immutable pada MVP. Reset password = `resetPasswordForEmail` dari FE (FR-05), bukan endpoint ini.
+- Email immutable pada MVP. Reset password = `resetPasswordForEmail` dari FE (FR-05), bukan endpoint ini. Tautan email mengarah ke halaman `/reset-password` (harus terdaftar di Supabase → Authentication → URL Configuration → Redirect URLs).
 - `users` UPDATE policy dipersempit ke SUPER_ADMIN atau profil sendiri; MANAGER_DIVISION tidak lagi bisa mengubah user lain (termasuk `is_active`).
 - Tidak ada `DELETE /api/users`; hapus = soft delete `PATCH { deleted: true }` (D9).
 

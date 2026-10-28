@@ -111,6 +111,10 @@ export const createAsset = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid client ID");
   }
 
+  if (req.profile?.role === "TECHNICIAN") {
+    throw new ApiError(403, "Technician is not allowed to create asset");
+  }
+
   const { data, error } = await req.supabase
     .from("assets")
     .insert({
@@ -127,6 +131,9 @@ export const createAsset = asyncHandler(async (req, res) => {
     if (error.code === "23503") {
       throw new ApiError(400, "Invalid client ID");
     }
+    if (error.code === "42501") {
+      throw new ApiError(403, "You are not allowed to create an asset");
+    }
     throw new ApiError(500, "Failed to create new asset");
   }
 
@@ -136,9 +143,18 @@ export const createAsset = asyncHandler(async (req, res) => {
 export const updateAsset = asyncHandler(async (req, res) => {
   const { assetId } = req.params;
   const { name, serialNumber, type, clientId, deleted } = req.body ?? {};
+  const role = req.profile?.role;
 
   if (!isUuid(assetId)) {
     throw new ApiError(400, "Invalid asset ID");
+  }
+
+  if (role === "TECHNICIAN") {
+    throw new ApiError(403, "Technician is not allowed to update asset");
+  }
+
+  if (role === "STAFF" && typeof deleted === "boolean") {
+    throw new ApiError(403, "Staff is not allowed to archive or restore asset");
   }
 
   if (clientId !== undefined && clientId !== null && clientId !== "") {

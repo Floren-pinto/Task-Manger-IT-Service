@@ -1,3 +1,6 @@
+-- New auth accounts start INACTIVE. POST /api/users (SUPER_ADMIN) activates the
+-- profile right after creating the account, so a self sign-up through the public
+-- anon key never gets data access.
 CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -6,8 +9,8 @@ BEGIN
         NEW.id,
         COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
         NEW.email,
-        'TECHNICIAN',   
-        TRUE,
+        'TECHNICIAN',
+        FALSE,
         NULL            
     );
     RETURN NEW;

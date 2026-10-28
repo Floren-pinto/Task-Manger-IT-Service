@@ -2,13 +2,16 @@
 -- users
 -- 
 -- SELECT POLICY
+-- Baris milik sendiri selalu boleh dibaca (juga saat nonaktif) agar Express
+-- bisa membalas 403 "Account is inactive" alih-alih 404.
 DROP POLICY IF EXISTS "select" ON users;
 CREATE POLICY "select"
 ON users
 FOR SELECT
 TO authenticated
 USING (
-    get_my_role() = 'SUPER_ADMIN'
+    id = auth.uid()::text
+    OR get_my_role() = 'SUPER_ADMIN'
     OR (
     role != 'SUPER_ADMIN'
     AND deleted_at IS NULL
@@ -23,9 +26,10 @@ USING (
 -- UPDATE POLICY
 -- Mutasi user selain profil sendiri hanya untuk SUPER_ADMIN.
 -- Update profil sendiri tetap dibatasi trigger enforce_user_column_restrictions
--- (hanya name/email/updated_at).
+-- (hanya name/email/updated_at). User nonaktif tidak bisa mengubah profilnya.
 DROP POLICY IF EXISTS "update only own profile and super admin can update all" ON users;
 DROP POLICY IF EXISTS "update own profile, manager update division staff, super admin all" ON users;
+DROP POLICY IF EXISTS "update own profile or super admin" ON users;
 
 CREATE POLICY "update own profile or super admin"
 ON users
@@ -33,9 +37,9 @@ FOR UPDATE
 TO authenticated
 USING (
     get_my_role() = 'SUPER_ADMIN'
-    OR (id = auth.uid()::text AND deleted_at IS NULL)
+    OR (id = auth.uid()::text AND is_active AND deleted_at IS NULL)
 )
 WITH CHECK (
     get_my_role() = 'SUPER_ADMIN'
-    OR (id = auth.uid()::text AND deleted_at IS NULL)
+    OR (id = auth.uid()::text AND is_active AND deleted_at IS NULL)
 );
