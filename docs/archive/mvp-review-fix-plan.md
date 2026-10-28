@@ -16,7 +16,22 @@
 >   `utils/dateTime.js` di server (batas hari WIB dikonversi ke UTC karena PostgreSQL
 >   mengabaikan offset pada kolom `TIMESTAMP` tanpa zona), kolom export CSV dalam WIB, dan
 >   `get_dashboard_summary()` memakai hari WIB (roadmap 3.7).
-> - Fase 5–7 belum dikerjakan.
+> - Keputusan: K2 = a (MANAGER_DIVISION tetap semua divisi; teks `RBAC.md` diperbaiki).
+> - Fase 5 ✅ B8: filter teknisi memakai embed `task_assignments!inner` (list task & riwayat),
+>   report terbaru diambil per 200 task, export mengirim header `X-Export-Total`/`X-Export-Truncated`
+>   dan FE menampilkan peringatan bila terpotong.
+> - Fase 6 ✅ C1–C5, C7 (server), C9: `sanitizeSearch` tunggal, `parsePaginationParams` di semua
+>   list, `utils/validation.js` (teks wajib/opsional + batas panjang, boolean ketat) dipakai
+>   task/client/asset/service report, validasi UUID & enum priority di task (temuan #29 selesai),
+>   respons create/update memakai konstanta kolom, `PATCH /notifications/:id` mengembalikan objek
+>   langsung, kode error RPC dicocokkan lewat `ERRCODE`.
+> - Fase 7 ✅ A4: policy INSERT `tasks`/`task_attachments`/`service_reports` mewajibkan pembuat =
+>   `auth.uid()` (+ `service_reports` hanya untuk task `COMPLETED` aktif); `update_task_status`
+>   menjadi `SECURITY DEFINER` dengan cek role/divisi; `task_status_history` tanpa policy INSERT;
+>   trigger menolak perubahan `status` di luar RPC untuk semua role. File policy 04/06/07/08
+>   sekarang aman dijalankan ulang.
+> - Belum termasuk plan ini: C8 (pesan error Bahasa Indonesia, roadmap 1.5), state machine status
+>   (roadmap 1.4), A7 (hardening produksi, roadmap 3.1).
 
 Dokumen ini berisi hasil review menyeluruh (server, SQL/RLS, client) setelah aplikasi mencapai MVP,
 beserta alasan setiap perbaikan dan urutan implementasinya.
@@ -307,7 +322,7 @@ penonaktifan akun benar-benar bekerja dari ujung ke ujung.
 |---|---|
 | 1 | `functions/00_helper_functions.sql`, `functions/01_trigger_functions.sql`, `functions/02_user_sync_functions.sql`, `policies/09_users_policy.sql`, `policies/03_assets_policy.sql` (bila K1 = a) |
 | 4 | `triggers/04_updated_at_triggers.sql` (drop trigger lama + buat ulang), `functions/05_dashboard_functions.sql` (hari WIB) |
-| 7 | `policies/04`, `06`, `07`, `08`, `functions/03_task_status_functions.sql`, `functions/01_trigger_functions.sql` |
+| 7 | `functions/01_trigger_functions.sql`, `functions/03_task_status_functions.sql`, `policies/04_tasks_policy.sql`, `06_task_status_history_policy.sql`, `07_task_attachments_policy.sql`, `08_service_reports_policy.sql` |
 
 ### Checklist verifikasi manual
 
