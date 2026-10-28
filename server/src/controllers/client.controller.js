@@ -7,14 +7,25 @@ import {
   parsePaginationParams,
   sanitizeSearch,
 } from "../utils/queryParams.js";
+import {
+  parseOptionalBoolean,
+  parseOptionalText,
+  parseRequiredText,
+} from "../utils/validation.js";
 
 const CLIENT_COLUMNS =
   "id, name, contact, email, address, service_type, deleted_at, created_at, updated_at";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function cleanString(value) {
-  return typeof value === "string" ? value.trim() : value;
+const MAX_LENGTH = { name: 200, contact: 100, email: 254, address: 500, serviceType: 100 };
+
+function parseEmail(value) {
+  const email = parseOptionalText(value, "email", MAX_LENGTH.email);
+  if (email && !EMAIL_PATTERN.test(email)) {
+    throw new ApiError(400, "email must be a valid email address");
+  }
+  return email;
 }
 
 function canViewDeletedAssets(role) {
@@ -113,34 +124,23 @@ export const getClientDetail = asyncHandler(async (req, res) => {
 export const createClient = asyncHandler(async (req, res) => {
   const { name, contact, email, address, serviceType } = req.body ?? {};
 
-  const cleanName = cleanString(name);
-  const cleanContact = cleanString(contact);
-  const cleanAddress = cleanString(address);
-  const cleanServiceType = cleanString(serviceType);
-  const cleanEmail = cleanString(email);
-
-  if (!cleanName || !cleanContact || !cleanAddress || !cleanServiceType) {
-    throw new ApiError(
-      400,
-      "name, contact, address, and serviceType are required",
-    );
-  }
-
-  if (cleanEmail && !EMAIL_PATTERN.test(cleanEmail)) {
-    throw new ApiError(400, "email must be a valid email address");
-  }
+  const payload = {
+    id: crypto.randomUUID(),
+    name: parseRequiredText(name, "name", MAX_LENGTH.name),
+    contact: parseRequiredText(contact, "contact", MAX_LENGTH.contact),
+    email: parseEmail(email) ?? null,
+    address: parseRequiredText(address, "address", MAX_LENGTH.address),
+    service_type: parseRequiredText(
+      serviceType,
+      "serviceType",
+      MAX_LENGTH.serviceType,
+    ),
+  };
 
   const { data, error } = await req.supabase
     .from("clients")
-    .insert({
-      id: crypto.randomUUID(),
-      name: cleanName,
-      contact: cleanContact,
-      email: cleanEmail || null,
-      address: cleanAddress,
-      service_type: cleanServiceType,
-    })
-    .select()
+    .insert(payload)
+    .select(CLIENT_COLUMNS)
     .single();
 
   if (error) {
@@ -167,30 +167,41 @@ export const updateClient = asyncHandler(async (req, res) => {
     throw new ApiError(403, "Technician is not allowed to update client");
   }
 
+  parseOptionalBoolean(deleted, "deleted");
+
   if (role === "STAFF" && deleted === true) {
     throw new ApiError(403, "Staff is not allowed to delete client");
   }
 
   const updatePayload = {};
 
-  const cleanName = cleanString(name);
-  if (cleanName) updatePayload.name = cleanName;
-
-  const cleanContact = cleanString(contact);
-  if (cleanContact) updatePayload.contact = cleanContact;
-
-  if (email !== undefined) {
-    const cleanEmail = cleanString(email);
-    updatePayload.email = cleanEmail || null;
+  if (name !== undefined) {
+    updatePayload.name = parseRequiredText(name, "name", MAX_LENGTH.name);
+  }
+  if (contact !== undefined) {
+    updatePayload.contact = parseRequiredText(
+      contact,
+      "contact",
+      MAX_LENGTH.contact,
+    );
+  }
+  if (email !== undefined) updatePayload.email = parseEmail(email);
+  if (address !== undefined) {
+    updatePayload.address = parseRequiredText(
+      address,
+      "address",
+      MAX_LENGTH.address,
+    );
+  }
+  if (serviceType !== undefined) {
+    updatePayload.service_type = parseRequiredText(
+      serviceType,
+      "serviceType",
+      MAX_LENGTH.serviceType,
+    );
   }
 
-  const cleanAddress = cleanString(address);
-  if (cleanAddress) updatePayload.address = cleanAddress;
-
-  const cleanServiceType = cleanString(serviceType);
-  if (cleanServiceType) updatePayload.service_type = cleanServiceType;
-
-  if (typeof deleted === "boolean") {
+  if (deleted !== undefined) {
     updatePayload.deleted_at = deleted ? new Date() : null;
   }
 
@@ -198,15 +209,11 @@ export const updateClient = asyncHandler(async (req, res) => {
     throw new ApiError(400, "At least one field is required to update");
   }
 
-  if (updatePayload.email && !EMAIL_PATTERN.test(updatePayload.email)) {
-    throw new ApiError(400, "email must be a valid email address");
-  }
-
   const { data, error } = await req.supabase
     .from("clients")
     .update(updatePayload)
     .eq("id", clientId)
-    .select()
+    .select(CLIENT_COLUMNS)
     .single();
 
   if (error) {

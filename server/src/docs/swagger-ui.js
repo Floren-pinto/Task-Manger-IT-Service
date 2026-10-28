@@ -1186,6 +1186,8 @@ const swaggerOptions = {
         patch: {
           tags: ["Tasks"],
           summary: "Perbarui status tiket",
+          description:
+            "Satu-satunya cara mengubah status (RPC update_task_status, SECURITY DEFINER) sehingga riwayat status & notifikasi selalu tercatat. STAFF ditolak; TECHNICIAN hanya task aktif di divisinya.",
           parameters: [
             {
               name: "taskId",
@@ -1492,14 +1494,7 @@ const swaggerOptions = {
                     properties: {
                       success: { type: "boolean", example: true },
                       message: { type: "string", example: "OK" },
-                      data: {
-                        type: "object",
-                        properties: {
-                          notification: {
-                            $ref: "#/components/schemas/Notification",
-                          },
-                        },
-                      },
+                      data: { $ref: "#/components/schemas/Notification" },
                     },
                   },
                 },
@@ -1895,6 +1890,14 @@ const swaggerOptions = {
                     example:
                       'attachment; filename="service-history-20261027.csv"',
                   },
+                },
+                "X-Export-Total": {
+                  description: "Jumlah baris yang cocok dengan filter",
+                  schema: { type: "integer", example: 6200 },
+                },
+                "X-Export-Truncated": {
+                  description: "true bila hasil dipotong di 5000 baris",
+                  schema: { type: "string", enum: ["true", "false"] },
                 },
               },
               content: {

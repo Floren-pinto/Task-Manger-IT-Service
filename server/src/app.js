@@ -11,8 +11,16 @@ import {
 export function createApp() {
   const app = express();
 
-  // Content-Disposition diekspos agar frontend bisa membaca nama file export CSV.
-  app.use(cors({ exposedHeaders: ["Content-Disposition"] })); // TODO: batasi origin sebelum production
+  // Header export CSV diekspos agar frontend bisa membaca nama file & status terpotong.
+  app.use(
+    cors({
+      exposedHeaders: [
+        "Content-Disposition",
+        "X-Export-Total",
+        "X-Export-Truncated",
+      ],
+    }),
+  ); // TODO: batasi origin sebelum production
   app.use(express.json());
   app.use(boolParser());
 

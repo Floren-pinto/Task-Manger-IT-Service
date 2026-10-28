@@ -136,14 +136,24 @@ bersamaan: ubah `tasks.status` **dan** tambah baris `task_status_history`. Di da
 keduanya berada dalam **satu transaksi** — kalau salah satu gagal, dua-duanya batal.
 
 ```
+cek role (STAFF/nonaktif → 42501)
 SELECT status ... FOR UPDATE   ← kunci baris, cegah dua orang mengubah bersamaan
-IF sama → RAISE 'SAME_STATUS'
+TECHNICIAN di luar divisi / task terhapus → P0002 (seolah tidak ada)
+IF sama → RAISE 'SAME_STATUS' (22023)
+set_config('app.status_change_via_rpc', 'on')   ← penanda untuk trigger
 UPDATE tasks SET status = ...
-INSERT INTO task_status_history (...)
+INSERT INTO task_status_history (..., auth.uid(), ...)
    └─ trigger → INSERT notifications
 ```
 
-`SECURITY INVOKER` = berjalan dengan hak user pemanggil, jadi RLS & trigger kolom tetap berlaku.
+`SECURITY DEFINER` = berjalan dengan hak pemilik function. Ini perlu karena `task_status_history`
+**tidak punya policy INSERT** untuk user: satu-satunya cara menulis riwayat adalah lewat function ini,
+sehingga `user_id` selalu `auth.uid()` dan riwayat tidak bisa dipalsukan. Karena RLS dilewati,
+aturan akses (role, divisi teknisi, task terhapus) dicek manual di dalam function.
+
+Trigger `enforce_task_column_restrictions` menolak perubahan `status` lewat `UPDATE` biasa untuk
+semua role, kecuali penanda `app.status_change_via_rpc` aktif (hanya diset function ini, berlaku
+sampai akhir transaksi). Error di-raise dengan `ERRCODE` sehingga Express mencocokkan kode, bukan teks pesan.
 
 ### `get_dashboard_summary()`
 
@@ -202,6 +212,7 @@ Controller menerjemahkan kode ini menjadi status HTTP:
 | `22007` / `22008` | Format tanggal salah | 400 |
 | `42501` | Ditolak RLS / tidak punya izin | 403 |
 | `P0001` | `RAISE EXCEPTION` dari trigger/function | 403/400 |
+| `P0002` / `22023` | `update_task_status`: task tidak ditemukan / status sama | 404 / 400 |
 | `PGRST116` | (PostgREST) `.single()` tidak menemukan baris | 404 |
 
 ---
@@ -217,10 +228,10 @@ Konsekuensinya, validasi yang hanya ada di controller bisa dilewati. Contoh nyat
 | Aturan | Dicek di Express | Dicek di DB |
 |---|---|---|
 | Assignee harus teknisi aktif di divisi yang sama | ✓ | ✓ (policy `task_assignments`) — **bagus** |
-| Service report hanya untuk task `COMPLETED` | ✓ | ✗ |
+| Service report hanya untuk task `COMPLETED` | ✓ | ✓ (policy INSERT `service_reports`) |
 | `snapshot_data` dibuat server | ✓ | ✗ |
-| `created_by_id` = user yang login | ✓ (diisi server) | ✗ |
-| Riwayat status hanya dibuat lewat RPC | ✓ | ✗ (teknisi bisa INSERT langsung) |
+| `created_by_id` / `uploaded_by_id` = user yang login | ✓ (diisi server) | ✓ (policy INSERT `tasks`, `service_reports`, `task_attachments`) |
+| Riwayat status hanya dibuat lewat RPC | ✓ | ✓ (tanpa policy INSERT + trigger status) |
 
 Ini dibahas sebagai prioritas di [roadmap.md](roadmap.md). Prinsip yang bisa dibawa ke proyek lain:
 **aturan keamanan & integritas data harus ada di lapisan yang tidak bisa dilewati.**

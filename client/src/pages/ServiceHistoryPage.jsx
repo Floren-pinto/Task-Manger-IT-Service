@@ -173,9 +173,17 @@ export default function ServiceHistoryPage() {
 
     setExporting(true);
     try {
-      const { blob, filename } = await exportServiceHistory(filterParams);
+      const { blob, filename, truncated, total } =
+        await exportServiceHistory(filterParams);
       downloadBlob(blob, filename);
-      toast.success("Riwayat servis berhasil diekspor.");
+      if (truncated) {
+        toast.warning(
+          `Hanya 5.000 dari ${total?.toLocaleString("id-ID") ?? "banyak"} baris yang diekspor. Persempit filter untuk mengekspor sisanya.`,
+          8000,
+        );
+      } else {
+        toast.success("Riwayat servis berhasil diekspor.");
+      }
     } catch (exportError) {
       toast.error(
         exportError.message || "Gagal mengekspor riwayat servis.",

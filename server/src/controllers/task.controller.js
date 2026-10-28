@@ -11,6 +11,48 @@ import {
   localDayEndUtc,
   localDayStartUtc,
 } from "../utils/dateTime.js";
+import {
+  isUuid,
+  parsePaginationParams,
+  sanitizeSearch,
+} from "../utils/queryParams.js";
+import {
+  parseOptionalBoolean,
+  parseRequiredText,
+} from "../utils/validation.js";
+
+// Kolom baris task yang dikembalikan create/update/status (tanpa relasi).
+const TASK_ROW_COLUMNS =
+  "id, title, description, priority, status, due_date, completed_at, division_id, client_id, asset_id, created_by_id, created_at, updated_at, deleted_at";
+
+const TITLE_MAX_LENGTH = 200;
+const DESCRIPTION_MAX_LENGTH = 5000;
+const PRIORITIES = new Set(["LOW", "MEDIUM", "HIGH", "URGENT"]);
+
+// Embed kedua khusus filter teknisi; `!inner` membuang task tanpa assignment
+// teknisi itu tanpa memotong daftar `assignments` yang ditampilkan.
+const TECHNICIAN_FILTER_EMBED =
+  "technician_filter:task_assignments!inner(user_id)";
+
+function parsePriority(value) {
+  if (!PRIORITIES.has(value)) {
+    throw new ApiError(400, "priority must be one of LOW, MEDIUM, HIGH, URGENT");
+  }
+  return value;
+}
+
+function parseUuidField(value, field) {
+  if (!isUuid(value)) throw new ApiError(400, `Invalid ${field}`);
+  return value;
+}
+
+function parseDueDate(value) {
+  if (value === null || value === "") return null;
+  if (typeof value !== "string") {
+    throw new ApiError(400, "dueDate must be a date string or null");
+  }
+  return value;
+}
 
 // "YYYY-MM-DD" dibaca sebagai hari WIB; nilai lain diteruskan apa adanya
 // (format tidak valid ditolak database dengan 22007 -> 400).
@@ -68,20 +110,14 @@ async function assertTaskAssetMatchesClient(supabase, taskId, clientId, assetId)
   });
 }
 
-function sanitizeSearch(value) {
-  return String(value)
-    .trim()
-    .replace(/^#/, "")
-    .replace(/[,()%"]/g, " ")
-    .trim();
-}
+const TASK_LIST_COLUMNS = `id, title, description, priority, status, due_date, created_at, updated_at, client:clients(id, name), division:divisions(id, name), assignments:task_assignments(user:users(id, name))`;
 
 export const listTasks = asyncHandler(async (req, res) => {
   const {
     status,
     priority,
-    page = 1,
-    limit = 20,
+    page,
+    limit,
     search,
     divisionId,
     clientId,
@@ -93,19 +129,21 @@ export const listTasks = asyncHandler(async (req, res) => {
     includeDeleted,
   } = req.query;
 
-  const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
-  const safePage = Math.max(Number(page) || 1, 1);
-  const from = (safePage - 1) * safeLimit;
-  const to = from + safeLimit - 1;
+  const { safePage, safeLimit, from, to } = parsePaginationParams(page, limit);
   const sortColumn = sortBy === "due_date" ? "due_date" : "created_at";
   const ascending = String(sortOrder).toLowerCase() === "asc";
 
+  if (technicianId && !isUuid(String(technicianId))) {
+    throw new ApiError(400, "Invalid technicianId");
+  }
+
+  const columns = technicianId
+    ? `${TASK_LIST_COLUMNS}, ${TECHNICIAN_FILTER_EMBED}`
+    : TASK_LIST_COLUMNS;
+
   let query = req.supabase
     .from("tasks")
-    .select(
-      `id, title, description, priority, status, due_date, created_at, updated_at, client:clients(id, name), division:divisions(id, name), assignments:task_assignments(user:users(id, name))`,
-      { count: "exact" },
-    )
+    .select(columns, { count: "exact" })
     .order(sortColumn, { ascending })
     .range(from, to);
 
@@ -124,38 +162,13 @@ export const listTasks = asyncHandler(async (req, res) => {
     query = query.lte("due_date", normalizeDateBound(dueTo, true));
   }
 
-  const keyword = search ? sanitizeSearch(search) : "";
+  const keyword = search ? sanitizeSearch(search, { stripHash: true }) : "";
   if (keyword) {
     query = query.or(`title.ilike.%${keyword}%,id.ilike.%${keyword}%`);
   }
 
   if (technicianId) {
-    const { data: assignments, error: assignmentError } = await req.supabase
-      .from("task_assignments")
-      .select("task_id")
-      .eq("user_id", technicianId);
-
-    if (assignmentError) {
-      throw new ApiError(500, "Failed to filter tasks by technician");
-    }
-
-    const taskIds = [
-      ...new Set((assignments ?? []).map((assignment) => assignment.task_id)),
-    ];
-
-    if (taskIds.length === 0) {
-      return ok(res, {
-        tasks: [],
-        pagination: {
-          page: safePage,
-          limit: safeLimit,
-          total: 0,
-          totalPages: 0,
-        },
-      });
-    }
-
-    query = query.in("id", taskIds);
+    query = query.eq("technician_filter.user_id", technicianId);
   }
 
   const { data, count, error } = await query;
@@ -170,9 +183,13 @@ export const listTasks = asyncHandler(async (req, res) => {
   }
 
   const total = count ?? 0;
+  // Embed filter hanya untuk query; tidak ikut dikirim ke client.
+  const tasks = (data ?? []).map(
+    ({ technician_filter: _technicianFilter, ...task }) => task,
+  );
 
   return ok(res, {
-    tasks: data,
+    tasks,
     pagination: {
       page: safePage,
       limit: safeLimit,
@@ -243,37 +260,45 @@ export const createTask = asyncHandler(async (req, res) => {
     divisionId,
     clientId,
     assetId,
-  } = req.body;
-
-  if (!title || !description || !divisionId || !clientId) {
-    throw new ApiError(
-      400,
-      "title, description, divisionId, and clientId are required",
-    );
-  }
+  } = req.body ?? {};
 
   if (req.profile.role === "TECHNICIAN") {
     throw new ApiError(403, "Technicians are not allowed to create tasks");
   }
 
-  if (assetId) {
-    await assertAssetBelongsToClient(req.supabase, assetId, clientId);
+  if (!divisionId || !clientId) {
+    throw new ApiError(400, "divisionId and clientId are required");
+  }
+
+  const payload = {
+    id: crypto.randomUUID(),
+    title: parseRequiredText(title, "title", TITLE_MAX_LENGTH),
+    description: parseRequiredText(
+      description,
+      "description",
+      DESCRIPTION_MAX_LENGTH,
+    ),
+    // undefined dibiarkan agar default database (MEDIUM) yang dipakai.
+    priority: priority === undefined ? undefined : parsePriority(priority),
+    due_date: dueDate === undefined ? null : parseDueDate(dueDate),
+    division_id: parseUuidField(divisionId, "divisionId"),
+    client_id: parseUuidField(clientId, "clientId"),
+    asset_id: assetId ? parseUuidField(assetId, "assetId") : null,
+    created_by_id: req.user.id,
+  };
+
+  if (payload.asset_id) {
+    await assertAssetBelongsToClient(
+      req.supabase,
+      payload.asset_id,
+      payload.client_id,
+    );
   }
 
   const { data, error } = await req.supabase
     .from("tasks")
-    .insert({
-      id: crypto.randomUUID(),
-      title,
-      description,
-      priority,
-      due_date: dueDate ?? null,
-      division_id: divisionId,
-      client_id: clientId,
-      asset_id: assetId ?? null,
-      created_by_id: req.user.id,
-    })
-    .select()
+    .insert(payload)
+    .select(TASK_ROW_COLUMNS)
     .single();
 
   if (error) {
@@ -281,8 +306,11 @@ export const createTask = asyncHandler(async (req, res) => {
       console.error("Create task invalid reference:", error.message);
       throw new ApiError(400, "Invalid divisionId, clientId, or assetId");
     }
-    if (error.code === "22P02") {
-      throw new ApiError(400, "Invalid priority value");
+    if (error.code === "22007" || error.code === "22008") {
+      throw new ApiError(400, "Invalid dueDate value");
+    }
+    if (error.code === "42501") {
+      throw new ApiError(403, "You are not allowed to create a task");
     }
     throw new ApiError(500, "Failed to create task");
   }
@@ -334,7 +362,7 @@ export const assignTask = asyncHandler(async (req, res) => {
       task_id: taskId,
       user_id: userId,
     })
-    .select()
+    .select("id, task_id, user_id, assigned_at")
     .single();
 
   if (error) {
@@ -365,25 +393,27 @@ export const updateTaskStatus = asyncHandler(async (req, res) => {
     p_new_status: newStatus,
   });
 
+  // Kode error di-raise oleh update_task_status (03_task_status_functions.sql).
   if (rpcError) {
-    if (rpcError.message?.includes("TASK_NOT_FOUND")) {
+    if (rpcError.code === "P0002") {
       throw new ApiError(404, "Task not found or accessible");
     }
-    if (rpcError.message?.includes("SAME_STATUS")) {
+    if (rpcError.code === "22023") {
       throw new ApiError(400, "New status is the same as the current status");
     }
     if (rpcError.code === "22P02") {
       throw new ApiError(400, `invalid status value ${newStatus}`);
     }
-    if (rpcError.message?.includes("only update")) {
+    if (rpcError.code === "42501") {
       throw new ApiError(403, "You are not allowed to change task status");
     }
+    console.error("update_task_status failed:", rpcError.message);
     throw new ApiError(500, "Failed to update task status");
   }
 
   const { data, error } = await req.supabase
     .from("tasks")
-    .select("*")
+    .select(TASK_ROW_COLUMNS)
     .eq("id", taskId)
     .single();
 
@@ -405,7 +435,7 @@ export const updateTask = asyncHandler(async (req, res) => {
     assetId,
     deleted,
     status,
-  } = req.body;
+  } = req.body ?? {};
 
   if (!taskId) throw new ApiError(400, "Task ID is required");
 
@@ -416,19 +446,31 @@ export const updateTask = asyncHandler(async (req, res) => {
     );
   }
 
-  if (deleted !== undefined && typeof deleted !== "boolean") {
-    throw new ApiError(400, "deleted must be a boolean");
-  }
+  parseOptionalBoolean(deleted, "deleted");
 
   const updatePayload = {};
 
-  if (title !== undefined) updatePayload.title = title;
-  if (description !== undefined) updatePayload.description = description;
-  if (priority !== undefined) updatePayload.priority = priority;
-  if (dueDate !== undefined) updatePayload.due_date = dueDate ?? null;
-  if (divisionId !== undefined) updatePayload.division_id = divisionId;
-  if (clientId !== undefined) updatePayload.client_id = clientId;
-  if (assetId !== undefined) updatePayload.asset_id = assetId ?? null;
+  if (title !== undefined) {
+    updatePayload.title = parseRequiredText(title, "title", TITLE_MAX_LENGTH);
+  }
+  if (description !== undefined) {
+    updatePayload.description = parseRequiredText(
+      description,
+      "description",
+      DESCRIPTION_MAX_LENGTH,
+    );
+  }
+  if (priority !== undefined) updatePayload.priority = parsePriority(priority);
+  if (dueDate !== undefined) updatePayload.due_date = parseDueDate(dueDate);
+  if (divisionId !== undefined) {
+    updatePayload.division_id = parseUuidField(divisionId, "divisionId");
+  }
+  if (clientId !== undefined) {
+    updatePayload.client_id = parseUuidField(clientId, "clientId");
+  }
+  if (assetId !== undefined) {
+    updatePayload.asset_id = assetId ? parseUuidField(assetId, "assetId") : null;
+  }
 
   if (deleted !== undefined) {
     updatePayload.deleted_at = deleted ? new Date() : null;
@@ -442,8 +484,8 @@ export const updateTask = asyncHandler(async (req, res) => {
     await assertTaskAssetMatchesClient(
       req.supabase,
       taskId,
-      clientId,
-      assetId === undefined ? undefined : assetId || null,
+      updatePayload.client_id,
+      updatePayload.asset_id,
     );
   }
 
@@ -451,7 +493,7 @@ export const updateTask = asyncHandler(async (req, res) => {
     .from("tasks")
     .update(updatePayload)
     .eq("id", taskId)
-    .select()
+    .select(TASK_ROW_COLUMNS)
     .single();
 
   if (error) {
@@ -477,7 +519,7 @@ export const updateTask = asyncHandler(async (req, res) => {
       throw new ApiError(400, "Invalid dueDate value");
     }
     if (error.code === "22P02") {
-      throw new ApiError(400, "Invalid priority value");
+      throw new ApiError(400, "Invalid field value");
     }
     throw new ApiError(500, "Failed to update task");
   }
@@ -544,17 +586,27 @@ export const createTaskAttachment = asyncHandler(async (req, res) => {
     throw new ApiError(400, "fileType must be JPEG, PNG, WEBP, or PDF");
   }
 
+  let cleanFileName;
+  try {
+    cleanFileName = parseRequiredText(fileName, "fileName", 255);
+  } catch (validationError) {
+    await removeFile();
+    throw validationError;
+  }
+
   const { data, error } = await req.supabase
     .from("task_attachments")
     .insert({
       id: crypto.randomUUID(),
       task_id: taskId,
       file_url: filePath,
-      file_name: fileName,
+      file_name: cleanFileName,
       file_type: fileType,
       uploaded_by_id: userId,
     })
-    .select()
+    .select(
+      "id, task_id, file_url, file_name, file_type, uploaded_at, uploaded_by_id",
+    )
     .single();
 
   if (error) {
@@ -616,12 +668,12 @@ export const deleteTaskAttachment = asyncHandler(async (req, res) => {
   if (fetchError) throw new ApiError(500, "Failed to fetch task attachment");
   if (!attachment) throw new ApiError(404, "Task attachment not found");
 
-  const { data, error } = await req.supabase
+  const { error } = await req.supabase
     .from("task_attachments")
     .delete()
     .eq("id", attachmentId)
     .eq("task_id", taskId)
-    .select()
+    .select("id")
     .single();
 
   if (error) {

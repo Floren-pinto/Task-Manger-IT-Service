@@ -7,15 +7,16 @@ import {
   parsePaginationParams,
   sanitizeSearch,
 } from "../utils/queryParams.js";
+import {
+  parseOptionalBoolean,
+  parseOptionalText,
+  parseRequiredText,
+} from "../utils/validation.js";
 
-function cleanString(value) {
-  return typeof value === "string" ? value.trim() : value;
-}
+const ASSET_COLUMNS =
+  "id, name, serial_number, type, client_id, deleted_at, created_at, updated_at";
 
-function cleanSerialNumber(value) {
-  const cleanValue = cleanString(value);
-  return cleanValue ? cleanValue : null;
-}
+const MAX_LENGTH = { name: 200, type: 100, serialNumber: 100 };
 
 // Asset yang sudah dipakai task tidak boleh pindah client: task lama akan
 // menunjuk asset milik client lain.
@@ -127,31 +128,28 @@ export const getAssetDetail = asyncHandler(async (req, res) => {
 export const createAsset = asyncHandler(async (req, res) => {
   const { name, serialNumber, type, clientId } = req.body ?? {};
 
-  const cleanName = cleanString(name);
-  const cleanType = cleanString(type);
-
-  if (!cleanName || !cleanType || !clientId) {
-    throw new ApiError(400, "name, type, and clientId are required");
+  if (req.profile?.role === "TECHNICIAN") {
+    throw new ApiError(403, "Technician is not allowed to create asset");
   }
 
   if (!isUuid(clientId)) {
     throw new ApiError(400, "Invalid client ID");
   }
 
-  if (req.profile?.role === "TECHNICIAN") {
-    throw new ApiError(403, "Technician is not allowed to create asset");
-  }
+  const payload = {
+    id: crypto.randomUUID(),
+    name: parseRequiredText(name, "name", MAX_LENGTH.name),
+    serial_number:
+      parseOptionalText(serialNumber, "serialNumber", MAX_LENGTH.serialNumber) ??
+      null,
+    type: parseRequiredText(type, "type", MAX_LENGTH.type),
+    client_id: clientId,
+  };
 
   const { data, error } = await req.supabase
     .from("assets")
-    .insert({
-      id: crypto.randomUUID(),
-      name: cleanName,
-      serial_number: cleanSerialNumber(serialNumber),
-      type: cleanType,
-      client_id: clientId,
-    })
-    .select()
+    .insert(payload)
+    .select(ASSET_COLUMNS)
     .single();
 
   if (error) {
@@ -180,34 +178,38 @@ export const updateAsset = asyncHandler(async (req, res) => {
     throw new ApiError(403, "Technician is not allowed to update asset");
   }
 
-  if (role === "STAFF" && typeof deleted === "boolean") {
+  parseOptionalBoolean(deleted, "deleted");
+
+  if (role === "STAFF" && deleted !== undefined) {
     throw new ApiError(403, "Staff is not allowed to archive or restore asset");
   }
 
-  if (clientId !== undefined && clientId !== null && clientId !== "") {
-    if (!isUuid(clientId)) {
-      throw new ApiError(400, "Invalid client ID");
-    }
+  if (clientId !== undefined && !isUuid(clientId)) {
+    throw new ApiError(400, "Invalid client ID");
   }
 
   const updatePayload = {};
 
-  const cleanName = cleanString(name);
-  if (cleanName) updatePayload.name = cleanName;
-
+  if (name !== undefined) {
+    updatePayload.name = parseRequiredText(name, "name", MAX_LENGTH.name);
+  }
   if (serialNumber !== undefined) {
-    updatePayload.serial_number = cleanSerialNumber(serialNumber);
+    updatePayload.serial_number = parseOptionalText(
+      serialNumber,
+      "serialNumber",
+      MAX_LENGTH.serialNumber,
+    );
+  }
+  if (type !== undefined) {
+    updatePayload.type = parseRequiredText(type, "type", MAX_LENGTH.type);
   }
 
-  const cleanType = cleanString(type);
-  if (cleanType) updatePayload.type = cleanType;
-
-  if (clientId) {
+  if (clientId !== undefined) {
     await assertAssetCanMoveToClient(req.supabase, assetId, clientId);
     updatePayload.client_id = clientId;
   }
 
-  if (typeof deleted === "boolean") {
+  if (deleted !== undefined) {
     updatePayload.deleted_at = deleted ? new Date() : null;
   }
 
@@ -219,7 +221,7 @@ export const updateAsset = asyncHandler(async (req, res) => {
     .from("assets")
     .update(updatePayload)
     .eq("id", assetId)
-    .select()
+    .select(ASSET_COLUMNS)
     .single();
 
   if (error) {

@@ -3,6 +3,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { created, ok } from "../utils/ApiResponse.js";
 import { supabaseAdmin } from "../config/supabase.js";
 import { isUuid, sanitizeSearch } from "../utils/queryParams.js";
+import { cleanString } from "../utils/validation.js";
 
 const USER_COLUMNS = `id, name, email, role, is_active, division_id, division:divisions!users_division_id_fkey(id, name), deleted_at, created_at, updated_at`;
 
@@ -18,10 +19,6 @@ const DIVISION_REQUIRED_ROLES = new Set(["TECHNICIAN", "MANAGER_DIVISION"]);
 const ACTIVE_ASSIGNMENT_STATUSES = ["PENDING", "IN_PROGRESS", "ON_HOLD"];
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function cleanString(value) {
-  return typeof value === "string" ? value.trim() : value;
-}
 
 function parseRole(value) {
   if (typeof value !== "string") return null;
