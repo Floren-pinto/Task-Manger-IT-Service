@@ -7,8 +7,16 @@
 > - Fase 1 ✅ A1, A2, A3, A5, B10 (A3 ikut menambah cek role di `asset.controller.js`, pemetaan
 >   `42501` di `createAsset`, dan tabel `assets`/`users` di `RBAC.md`). Tambahan: policy SELECT `users` mengizinkan
 >   baris milik sendiri, dan policy UPDATE profil sendiri mewajibkan akun aktif (lihat catatan A1).
-> - Fase 2 ✅ B1, B2, B3, C6, C7 (bagian client).
-> - Fase 3–7 belum dikerjakan.
+> - Fase 2 ✅ B1, B2, B3, C6, C7 (bagian client). Di-merge lewat PR #35.
+> - Keputusan: K3 = a (perbaikan jam di client, tanpa migrasi `timestamptz`).
+> - Fase 3 ✅ A6, B5, B9, B11 (storage error). Tambahan: server memvalidasi `fileType`;
+>   helper `getErrorMessage()` di `utils/errorMessage.js`; refetch detail task tidak lagi
+>   menutup drawer.
+> - Fase 4 ✅ B4, B6, B7, B11 (pagination). B4 mencakup `parseDbDate()` di client,
+>   `utils/dateTime.js` di server (batas hari WIB dikonversi ke UTC karena PostgreSQL
+>   mengabaikan offset pada kolom `TIMESTAMP` tanpa zona), kolom export CSV dalam WIB, dan
+>   `get_dashboard_summary()` memakai hari WIB (roadmap 3.7).
+> - Fase 5–7 belum dikerjakan.
 
 Dokumen ini berisi hasil review menyeluruh (server, SQL/RLS, client) setelah aplikasi mencapai MVP,
 beserta alasan setiap perbaikan dan urutan implementasinya.
@@ -298,7 +306,7 @@ penonaktifan akun benar-benar bekerja dari ujung ke ujung.
 | Fase | File |
 |---|---|
 | 1 | `functions/00_helper_functions.sql`, `functions/01_trigger_functions.sql`, `functions/02_user_sync_functions.sql`, `policies/09_users_policy.sql`, `policies/03_assets_policy.sql` (bila K1 = a) |
-| 4 | `triggers/04_updated_at_triggers.sql` (drop trigger lama + buat ulang) |
+| 4 | `triggers/04_updated_at_triggers.sql` (drop trigger lama + buat ulang), `functions/05_dashboard_functions.sql` (hari WIB) |
 | 7 | `policies/04`, `06`, `07`, `08`, `functions/03_task_status_functions.sql`, `functions/01_trigger_functions.sql` |
 
 ### Checklist verifikasi manual
