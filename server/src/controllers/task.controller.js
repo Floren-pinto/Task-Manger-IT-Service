@@ -6,16 +6,66 @@ import {
   ATTACHMENT_BUCKET,
   attachSignedAttachmentUrls,
 } from "../utils/attachmentUrl.js";
+import {
+  isDateOnly,
+  localDayEndUtc,
+  localDayStartUtc,
+} from "../utils/dateTime.js";
 
+// "YYYY-MM-DD" dibaca sebagai hari WIB; nilai lain diteruskan apa adanya
+// (format tidak valid ditolak database dengan 22007 -> 400).
 function normalizeDateBound(value, endOfDay = false) {
-  if (!value) return value;
+  if (!isDateOnly(value)) return value;
+  const bound = endOfDay ? localDayEndUtc(value) : localDayStartUtc(value);
+  return bound ?? value;
+}
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const time = endOfDay ? "23:59:59.999" : "00:00:00.000";
-    return `${value}T${time}Z`;
+// Asset task wajib milik client task tersebut, agar riwayat servis & laporan
+// tidak menampilkan pasangan client–asset yang salah.
+async function assertAssetBelongsToClient(
+  supabase,
+  assetId,
+  clientId,
+  { allowArchived = false } = {},
+) {
+  const { data: asset, error } = await supabase
+    .from("assets")
+    .select("id, client_id, deleted_at")
+    .eq("id", assetId)
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === "22P02") throw new ApiError(400, "Invalid assetId");
+    throw new ApiError(500, "Failed to validate asset");
   }
+  if (!asset) throw new ApiError(400, "Invalid assetId");
+  if (asset.client_id !== clientId) {
+    throw new ApiError(400, "Asset does not belong to the selected client");
+  }
+  if (asset.deleted_at && !allowArchived) {
+    throw new ApiError(400, "Asset is archived");
+  }
+}
 
-  return value;
+// Untuk update parsial: gabungkan nilai baru dengan nilai task saat ini.
+async function assertTaskAssetMatchesClient(supabase, taskId, clientId, assetId) {
+  const { data: current, error } = await supabase
+    .from("tasks")
+    .select("client_id, asset_id")
+    .eq("id", taskId)
+    .maybeSingle();
+
+  if (error) throw new ApiError(500, "Failed to fetch task");
+  if (!current) throw new ApiError(404, "Task not found or accessible");
+
+  const nextClientId = clientId === undefined ? current.client_id : clientId;
+  const nextAssetId = assetId === undefined ? current.asset_id : assetId;
+  if (!nextAssetId) return;
+
+  // Asset lama yang kemudian diarsip tetap boleh dipertahankan.
+  await assertAssetBelongsToClient(supabase, nextAssetId, nextClientId, {
+    allowArchived: nextAssetId === current.asset_id,
+  });
 }
 
 function sanitizeSearch(value) {
@@ -206,6 +256,10 @@ export const createTask = asyncHandler(async (req, res) => {
     throw new ApiError(403, "Technicians are not allowed to create tasks");
   }
 
+  if (assetId) {
+    await assertAssetBelongsToClient(req.supabase, assetId, clientId);
+  }
+
   const { data, error } = await req.supabase
     .from("tasks")
     .insert({
@@ -384,6 +438,15 @@ export const updateTask = asyncHandler(async (req, res) => {
     throw new ApiError(400, "At least one field is required to update");
   }
 
+  if (clientId !== undefined || assetId !== undefined) {
+    await assertTaskAssetMatchesClient(
+      req.supabase,
+      taskId,
+      clientId,
+      assetId === undefined ? undefined : assetId || null,
+    );
+  }
+
   const { data, error } = await req.supabase
     .from("tasks")
     .update(updatePayload)
@@ -426,26 +489,59 @@ export const updateTask = asyncHandler(async (req, res) => {
   );
 });
 
+const ALLOWED_ATTACHMENT_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+]);
+
+// Path wajib tepat "<taskId>/<namaFile>": satu folder, tanpa ".." atau backslash.
+function isValidAttachmentPath(filePath, taskId) {
+  if (typeof filePath !== "string") return false;
+  const [folder, fileName, ...rest] = filePath.split("/");
+  return (
+    folder === String(taskId) &&
+    rest.length === 0 &&
+    Boolean(fileName) &&
+    fileName !== "." &&
+    fileName !== ".." &&
+    !fileName.includes("\\")
+  );
+}
+
+// storage.remove() mengembalikan { error } alih-alih melempar.
+async function removeAttachmentFile(supabase, filePath) {
+  try {
+    const { error } = await supabase.storage
+      .from(ATTACHMENT_BUCKET)
+      .remove([filePath]);
+    if (error) {
+      console.error(`Failed to remove file [${filePath}]`, error.message);
+    }
+  } catch (err) {
+    console.error(`Failed to remove file [${filePath}]`, err.message);
+  }
+}
+
 export const createTaskAttachment = asyncHandler(async (req, res) => {
-  const { filePath, fileName, fileType } = req.body;
+  const { filePath, fileName, fileType } = req.body ?? {};
   const { taskId } = req.params;
   const { id: userId } = req.profile;
 
   if (!fileName || !fileType || !filePath)
     throw new ApiError(400, "filePath, fileName and fileType are required");
 
-  const fileFolder = filePath.split("/")[0];
-  const removeFile = async () => {
-    try {
-      await req.supabase.storage.from(ATTACHMENT_BUCKET).remove([filePath]);
-    } catch (err) {
-      console.error(`Failed clean orphan file [${filePath}]`, err.message);
-    }
-  };
-
-  if (fileFolder !== String(taskId)) {
-    await removeFile();
+  // Path tidak valid ditolak TANPA menghapus apa pun: path itu bisa milik task lain.
+  if (!isValidAttachmentPath(filePath, taskId)) {
     throw new ApiError(400, "filePath does not match");
+  }
+
+  const removeFile = () => removeAttachmentFile(req.supabase, filePath);
+
+  if (!ALLOWED_ATTACHMENT_TYPES.has(fileType)) {
+    await removeFile();
+    throw new ApiError(400, "fileType must be JPEG, PNG, WEBP, or PDF");
   }
 
   const { data, error } = await req.supabase
@@ -539,16 +635,7 @@ export const deleteTaskAttachment = asyncHandler(async (req, res) => {
     throw new ApiError(500, "Failed to delete task attachment");
   }
 
-  try {
-    await req.supabase.storage
-      .from(ATTACHMENT_BUCKET)
-      .remove([attachment.file_url]);
-  } catch (err) {
-    console.error(
-      `Failed to remove file [${attachment.file_url}]`,
-      err.message,
-    );
-  }
+  await removeAttachmentFile(req.supabase, attachment.file_url);
 
   return ok(res, null, "Task attachment deleted");
 });

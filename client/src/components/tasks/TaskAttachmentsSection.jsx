@@ -1,5 +1,6 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import { FileText, Download, Plus, Trash2 } from "lucide-react";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
 
 const getAttachmentUrl = (file) => {
   const url = file?.signed_url || file?.file_url || "";
@@ -10,9 +11,12 @@ export function TaskAttachmentsSection({
   attachments = [],
   onUpload,
   onDelete,
+  canDelete = () => false,
   uploading = false,
+  deleting = false,
 }) {
   const fileInputRef = useRef(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -20,6 +24,11 @@ export function TaskAttachmentsSection({
       onUpload(file);
       e.target.value = "";
     }
+  };
+
+  const handleConfirmDelete = async () => {
+    await onDelete?.(deleteTarget.id);
+    setDeleteTarget(null);
   };
 
   const imageAttachments = attachments.filter(
@@ -78,12 +87,13 @@ export function TaskAttachmentsSection({
               <span className="absolute inset-x-0 bottom-0 truncate bg-slate-900/60 px-2 py-1.5 text-[10px] text-white">
                 {file.file_name || "Bukti foto"}
               </span>
-              {onDelete && (
+              {canDelete(file) && (
+                // Selalu terlihat di layar sentuh; hanya perangkat dengan hover yang menyembunyikannya.
                 <button
                   type="button"
-                  onClick={() => onDelete(file.id)}
-                  aria-label="Hapus lampiran"
-                  className="absolute right-1.5 top-1.5 rounded-md bg-rose-600/80 p-1 text-white opacity-0 transition group-hover:opacity-100 hover:bg-rose-700"
+                  onClick={() => setDeleteTarget(file)}
+                  aria-label={`Hapus ${file.file_name || "lampiran"}`}
+                  className="absolute right-1.5 top-1.5 rounded-md bg-rose-600/80 p-1 text-white transition hover:bg-rose-700 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -118,11 +128,11 @@ export function TaskAttachmentsSection({
                   <Download aria-hidden="true" className="h-4 w-4" />
                 </a>
               )}
-              {onDelete && (
+              {canDelete(file) && (
                 <button
                   type="button"
-                  onClick={() => onDelete(file.id)}
-                  aria-label="Hapus lampiran"
+                  onClick={() => setDeleteTarget(file)}
+                  aria-label={`Hapus ${file.file_name || "lampiran"}`}
                   className="shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-rose-600"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -138,6 +148,17 @@ export function TaskAttachmentsSection({
           Bukti foto atau lampiran belum tersedia untuk tugas ini.
         </p>
       )}
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Hapus lampiran?"
+        description={`"${deleteTarget?.file_name || "Lampiran"}" akan dihapus permanen dari tugas ini.`}
+        confirmLabel="Hapus"
+        variant="danger"
+        loading={deleting}
+        onConfirm={handleConfirmDelete}
+        onClose={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

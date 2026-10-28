@@ -76,6 +76,9 @@ export const taskSortOptions = [
 
 export const pageSizeOptions = [10, 20, 50, 100];
 
+// Boleh menghapus semua lampiran; TECHNICIAN hanya lampiran yang ia unggah (RLS).
+export const attachmentDeleteRoles = new Set(["SUPER_ADMIN", "MANAGER_DIVISION"]);
+
 export const allowedAttachmentTypes = [
   "image/jpeg",
   "image/png",

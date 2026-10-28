@@ -2,6 +2,11 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ok } from "../utils/ApiResponse.js";
 import { toCsv } from "../utils/csv.js";
+import {
+  formatLocalTimestamp,
+  localDayEndUtc,
+  localDayStartUtc,
+} from "../utils/dateTime.js";
 import { isUuid, parsePaginationParams } from "../utils/queryParams.js";
 
 const EXPORT_MAX_ROWS = 5000;
@@ -95,11 +100,12 @@ async function buildHistoryQuery(supabase, filters, countOptions) {
   if (filters.assetId) query = query.eq("asset_id", filters.assetId);
   if (filters.divisionId) query = query.eq("division_id", filters.divisionId);
 
+  // Tanggal filter dibaca sebagai hari WIB.
   if (filters.completedFrom) {
-    query = query.gte("completed_at", `${filters.completedFrom} 00:00:00`);
+    query = query.gte("completed_at", localDayStartUtc(filters.completedFrom));
   }
   if (filters.completedTo) {
-    query = query.lte("completed_at", `${filters.completedTo} 23:59:59.999`);
+    query = query.lte("completed_at", localDayEndUtc(filters.completedTo));
   }
 
   if (filters.keyword) {
@@ -246,11 +252,6 @@ export const listServiceHistory = asyncHandler(async (req, res) => {
   });
 });
 
-function formatTimestamp(value) {
-  if (!value) return "";
-  return String(value).replace("T", " ").replace(/\.\d+$/, "").slice(0, 19);
-}
-
 function formatExportDate(date) {
   return date.toISOString().slice(0, 10).replace(/-/g, "");
 }
@@ -275,7 +276,7 @@ export const exportServiceHistory = asyncHandler(async (req, res) => {
       "Asset",
       "Division",
       "Technicians",
-      "Completed At",
+      "Completed At (WIB)",
       "Priority",
       "Summary",
       "Action Taken",
@@ -292,7 +293,7 @@ export const exportServiceHistory = asyncHandler(async (req, res) => {
         : "",
       item.division?.name ?? "",
       item.technicians.map((technician) => technician.name).join("; "),
-      formatTimestamp(item.task.completed_at),
+      formatLocalTimestamp(item.task.completed_at),
       item.task.priority,
       item.report?.summary ?? "",
       item.report?.action_taken ?? "",

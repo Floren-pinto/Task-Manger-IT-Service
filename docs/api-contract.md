@@ -162,7 +162,7 @@ Login/logout dilakukan **FE langsung ke Supabase Auth** (bukan endpoint Express)
 | `priority` | `Priority` | satu nilai, `.eq` |
 | `divisionId`, `clientId` | uuid | |
 | `technicianId` | uuid | pre-query `task_assignments.user_id`, lalu filter `tasks.id in (...)`; jika tidak ada assignment → list kosong |
-| `dueFrom`, `dueTo` | tanggal / ISO | `YYYY-MM-DD` dinormalisasi ke awal/akhir hari UTC; filter `due_date` |
+| `dueFrom`, `dueTo` | tanggal / ISO | `YYYY-MM-DD` dibaca sebagai hari WIB lalu dikonversi ke UTC (kolom DB menyimpan UTC tanpa zona); filter `due_date` |
 | `search` | string | `ilike` pada `title` atau `id`; prefix `#` dibuang; karakter `,()%"` disanitasi |
 | `sortBy` | `due_date` \| lainnya | hanya `due_date` yang dikenali; selain itu `created_at` |
 | `sortOrder` | `asc` \| lainnya | `asc` → ascending; selain itu descending |
@@ -197,7 +197,8 @@ Login/logout dilakukan **FE langsung ke Supabase Auth** (bukan endpoint Express)
 
 - `status` tidak dibaca dari body (default DB `PENDING`); `created_by_id` diambil dari token.
 - 201: `data` = **baris `tasks` mentah** (snake_case, tanpa relasi), message `"Task created"`
-- Error: 400 field wajib; 400 `"Invalid divisionId, clientId, or assetId"` (23503); 400 `"Invalid priority value"` (22P02 — juga bisa muncul untuk UUID malformed, temuan #29); 403 TECHNICIAN; 500.
+- `assetId` (bila diisi) harus milik `clientId` dan tidak diarsip.
+- Error: 400 field wajib; 400 `"Asset does not belong to the selected client"` / `"Asset is archived"` / `"Invalid assetId"`; 400 `"Invalid divisionId, clientId, or assetId"` (23503); 400 `"Invalid priority value"` (22P02 — juga bisa muncul untuk UUID malformed, temuan #29); 403 TECHNICIAN; 500.
 
 ### `GET /api/tasks/:taskId` ✅
 - 200: `data` =
@@ -246,7 +247,7 @@ Login/logout dilakukan **FE langsung ke Supabase Auth** (bukan endpoint Express)
 - Tidak ada matriks transisi status; semua status berbeda yang valid diterima (mis. `COMPLETED` → `IN_PROGRESS`).
 - 200: `data` = **baris `tasks` mentah (`select *`)**, message `"Task status updated"`
 - Error: 400 status sama / status invalid; 403 tidak diizinkan; 404 task tidak ditemukan; 500.
-- Side effect: notifikasi `STATUS_CHANGE` untuk assignee, manager divisi, dan pelaku.
+- Side effect: notifikasi `STATUS_CHANGE` untuk assignee dan manager divisi yang aktif, kecuali pelaku perubahan.
 
 ### `PATCH /api/tasks/:taskId` ✅
 - Body parsial: `title`, `description`, `priority`, `dueDate`, `divisionId`, `clientId`, `assetId`, `deleted`.
@@ -264,7 +265,8 @@ Login/logout dilakukan **FE langsung ke Supabase Auth** (bukan endpoint Express)
 
 - RLS juga membatasi STAFF/TECHNICIAN ke task yang belum soft-deleted dan TECHNICIAN ke divisinya.
 - `divisionId` **boleh diubah** oleh SUPER_ADMIN/MANAGER_DIVISION (berbeda dari desain awal D1).
-- Tidak ada validasi bahwa `assetId` milik `clientId`; tidak ada larangan edit task `COMPLETED`/`CANCELLED`.
+- Bila `clientId` atau `assetId` dikirim, pasangan akhirnya (digabung dengan nilai task saat ini) divalidasi: asset harus milik client → 400 `"Asset does not belong to the selected client"`. Asset baru yang diarsip ditolak; asset lama yang kemudian diarsip boleh dipertahankan.
+- Tidak ada larangan edit task `COMPLETED`/`CANCELLED`.
 - 200: baris `tasks` mentah, message `"Task updated successfully"` atau `"Task deleted successfully"`.
 - Error: 400 (body kosong, `deleted` bukan boolean, `status`, referensi invalid, NOT NULL, tanggal/priority invalid; 22P02 selalu dipetakan sebagai `"Invalid priority value"` meskipun penyebabnya UUID malformed, temuan #29); 403 (`P0001`/`42501`); 404 (`PGRST116`); 500.
 
@@ -280,9 +282,12 @@ Login/logout dilakukan **FE langsung ke Supabase Auth** (bukan endpoint Express)
 
 ### `POST /api/tasks/:taskId/attachments` ✅
 - Alur: FE upload ke Supabase Storage bucket `task_attachments` dengan path `{taskId}/{filename}` → FE kirim metadata ke endpoint ini.
-- Batas bucket: 5 MB; MIME `image/png`, `image/webp`, `application/pdf` (aturan bucket, bukan validasi app).
+- Batas bucket (atur di Supabase Storage → bucket `task_attachments`): 5 MB; MIME `image/jpeg`, `image/png`, `image/webp`, `application/pdf`. FE menyusun nama file aman untuk path (`{timestamp}-{slug}.{ext}`); nama asli disimpan di `file_name`.
 - Body: `{ "filePath": "", "fileName": "", "fileType": "" }` — ketiganya wajib.
-- Validasi: folder pertama `filePath` harus sama dengan `:taskId`; jika tidak cocok atau insert DB gagal, server menghapus file di Storage (compensating action).
+- Validasi:
+  - `filePath` harus tepat `{taskId}/{namaFile}` (satu folder, tanpa `..`/backslash) → bila tidak, 400 `"filePath does not match"` **tanpa** menghapus file apa pun (path itu bisa milik task lain).
+  - `fileType` harus JPEG/PNG/WEBP/PDF → bila tidak, 400 dan file di path valid tadi dihapus.
+  - Insert DB gagal → file di path valid dihapus (compensating action).
 - 201: `data` = `{ id, task_id, file_url, file_name, file_type, uploaded_at, uploaded_by_id, signed_url }`, message `"Task attachment created"`
 - Role (RLS): SUPER_ADMIN, MANAGER_DIVISION, TECHNICIAN (divisi sendiri), STAFF.
 - Error: 400; 403 (pesan 42501 masih salah konteks, temuan #21); 500.
@@ -391,23 +396,25 @@ Visibility (RLS, diperbarui): STAFF & TECHNICIAN hanya melihat asset aktif (`del
 ### `POST /api/assets` ✅
 - Body: `{ name, type, clientId, serialNumber? }`; string di-`trim`; `serialNumber` kosong → `null`.
 - `clientId` wajib dan harus UUID → 400 `"Invalid client ID"`.
+- Role: TECHNICIAN → 403 (app layer + RLS).
 - 201: baris `assets` mentah, message `"Asset created successfully"`.
-- Error: 400 field wajib; 400 `"Invalid client ID"` (23503); 500.
+- Error: 400 field wajib; 400 `"Invalid client ID"` (23503); 403 TECHNICIAN / `42501`; 500.
 
 ### `PATCH /api/assets/:assetId` ✅
 - Body parsial: `name`, `serialNumber` (`""` → `null`), `type`, `clientId`, `deleted` (boolean); minimal satu field.
-- Semua role authenticated dapat mengubah/soft delete/restore sesuai RLS; app layer tidak membatasi role.
+- Role: TECHNICIAN → 403; STAFF mengirim `deleted` → 403 (tidak boleh arsip/pulihkan); SUPER_ADMIN & MANAGER_DIVISION semua.
 - `assetId`/`clientId` bukan UUID → 400 `"Invalid asset ID"` / `"Invalid client ID"`.
+- Pindah ke client lain ditolak 409 bila asset sudah dipakai task (task lama akan menunjuk asset milik client lain).
 - 200: baris `assets` mentah, message `"Asset updated successfully"` / `"Asset deleted successfully"` / `"Asset restored successfully"`.
-- Error: 400 tidak ada field / `"Invalid client ID"` (23503); 403 `"You are not allowed to update this asset"` (42501); 404 `"Asset not found"` (PGRST116); 500.
+- Error: 400 tidak ada field / `"Invalid client ID"` (23503); 403 role / `"You are not allowed to update this asset"` (42501); 404 `"Asset not found"` (PGRST116); 409 asset sudah dipakai task; 500.
 
 ### Policy `03_assets_policy.sql` ✅
 ```sql
 -- SELECT: aktif untuk semua role; baris arsip hanya admin/manager
 deleted_at IS NULL OR get_my_role() IN ('SUPER_ADMIN', 'MANAGER_DIVISION')
 ```
-- INSERT/UPDATE tetap `TRUE` untuk `AUTHENTICATED`.
-- File sekarang memakai `DROP POLICY IF EXISTS` agar aman dijalankan ulang di Supabase SQL Editor.
+- INSERT: SUPER_ADMIN, MANAGER_DIVISION, STAFF. UPDATE: STAFF hanya asset aktif dan tidak boleh mengisi `deleted_at`; SUPER_ADMIN/MANAGER_DIVISION semua (mengikuti `clients`).
+- File memakai `DROP POLICY IF EXISTS` agar aman dijalankan ulang di Supabase SQL Editor.
 
 ---
 
@@ -569,7 +576,7 @@ Report bersifat **immutable** (RLS tidak punya policy UPDATE/DELETE, dan tidak a
 
 Daftar **task selesai** (bukan daftar report). Mount `/service-history` memakai `requireAuth` + `attachProfile`; RLS `tasks` membatasi hasil (TECHNICIAN hanya divisinya).
 
-- Query: `search` (judul, ID task, atau nama client), `clientId`, `assetId`, `divisionId` (UUID; selain itu → 400), `technicianId`, `completedFrom`/`completedTo` (`YYYY-MM-DD`; format salah atau from > to → 400), `page` (default 1), `limit` (default 20, maks 100), `sortOrder=desc|asc` (berdasarkan `completed_at`, default `desc`).
+- Query: `search` (judul, ID task, atau nama client), `clientId`, `assetId`, `divisionId` (UUID; selain itu → 400), `technicianId`, `completedFrom`/`completedTo` (`YYYY-MM-DD`, hari WIB; format salah atau from > to → 400), `page` (default 1), `limit` (default 20, maks 100), `sortOrder=desc|asc` (berdasarkan `completed_at`, default `desc`).
 - Hanya `status = COMPLETED` dan `deleted_at IS NULL`; filter tanggal memakai `completed_at`.
 - `report` = report **terbaru** task tersebut (tanpa `snapshot_data`) atau `null` bila belum ada; task tanpa report tetap tampil.
 - 200:
@@ -592,7 +599,7 @@ Daftar **task selesai** (bukan daftar report). Mount `/service-history` memakai 
 
 - Query sama dengan list tanpa `page`/`limit`; maksimal 5000 baris.
 - 200: `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="service-history-YYYYMMDD.csv"` (header ini diekspos lewat CORS `exposedHeaders`).
-- Kolom: Task ID, Title, Client, Asset, Division, Technicians, Completed At, Priority, Summary, Action Taken, Notes (report terbaru).
+- Kolom: Task ID, Title, Client, Asset, Division, Technicians, Completed At (WIB, `YYYY-MM-DD HH:mm:ss`), Priority, Summary, Action Taken, Notes (report terbaru).
 - Setiap sel dibungkus `"` dengan `"` di-escape menjadi `""`; sel yang diawali `=`, `+`, `-`, `@`, tab, atau CR diberi prefix `'` (cegah formula injection). File diawali BOM UTF-8 agar terbaca benar di Excel.
 - Error validasi/DB dikirim sebagai JSON sebelum header CSV dikirim.
 

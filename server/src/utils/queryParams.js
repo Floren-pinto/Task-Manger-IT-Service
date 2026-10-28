@@ -14,8 +14,9 @@ export function sanitizeSearch(value) {
 }
 
 export function parsePaginationParams(page, limit) {
-  const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
-  const safePage = Math.max(Number(page) || 1, 1);
+  // Math.floor: "page=1.5" tidak boleh menghasilkan offset pecahan.
+  const safeLimit = Math.min(Math.max(Math.floor(Number(limit)) || 20, 1), 100);
+  const safePage = Math.max(Math.floor(Number(page)) || 1, 1);
   const from = (safePage - 1) * safeLimit;
 
   return {

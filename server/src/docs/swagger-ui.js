@@ -869,6 +869,8 @@ const swaggerOptions = {
         patch: {
           tags: ["Assets"],
           summary: "Ubah atau arsipkan asset",
+          description:
+            "TECHNICIAN tidak boleh mengubah asset; STAFF tidak boleh mengirim deleted. Asset yang sudah dipakai task tidak bisa dipindah ke client lain (409).",
           requestBody: {
             required: true,
             content: {
@@ -891,6 +893,7 @@ const swaggerOptions = {
             400: { description: "Tidak ada field / ID tidak valid" },
             403: { description: "Tidak diizinkan" },
             404: { description: "Asset tidak ditemukan" },
+            409: { description: "Asset sudah dipakai task, tidak bisa pindah client" },
           },
         },
       },
@@ -1033,6 +1036,8 @@ const swaggerOptions = {
                       type: "string",
                       format: "uuid",
                       nullable: true,
+                      description:
+                        "Harus milik clientId dan tidak diarsip (400 bila tidak).",
                     },
                     priority: {
                       type: "string",
@@ -1120,6 +1125,8 @@ const swaggerOptions = {
                       type: "string",
                       format: "uuid",
                       nullable: true,
+                      description:
+                        "Pasangan client–asset akhir harus cocok (400 bila tidak).",
                     },
                     deleted: {
                       type: "boolean",
