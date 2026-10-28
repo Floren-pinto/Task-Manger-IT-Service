@@ -13,6 +13,15 @@ BEGIN
         ELSE OLD.completed_at
     END;
 
+    -- status may only change through update_task_status(), which writes the
+    -- history row and triggers the notification; a direct UPDATE (any role)
+    -- would skip both
+    IF NEW.status IS DISTINCT FROM OLD.status
+       AND coalesce(current_setting('app.status_change_via_rpc', true), '') <> 'on' THEN
+        RAISE EXCEPTION 'Task status can only be changed through update_task_status'
+            USING ERRCODE = '42501';
+    END IF;
+
     IF get_my_role() IN ('TECHNICIAN')
     AND (
         to_jsonb(OLD.*) - allowed_columns_technician <> to_jsonb(NEW.*) - allowed_columns_technician

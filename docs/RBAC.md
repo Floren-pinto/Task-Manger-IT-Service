@@ -6,7 +6,7 @@ Dokumen ini mendefinisikan aturan hak akses database (Supabase Row Level Securit
 
 ## Ringkasan Peran (Roles)
 1. **SUPER_ADMIN**: Memiliki akses penuh (Bypass RLS / Full Control) pada semua tabel dan kolom.
-2. **MANAGER_DIVISION**: Mengelola tugas, tim, dan laporan pada divisinya.
+2. **MANAGER_DIVISION**: Mengelola tugas, tim, dan laporan di **semua divisi** (keputusan MVP; notifikasi perubahan status tetap hanya untuk manager divisi task).
 3. **STAFF**: Mengelola data pelanggan, membuat tugas lintas divisi, serta mengatur prioritas/tenggat waktu.
 4. **TECHNICIAN**: Menerima tugas, memperbarui status pekerjaan, dan mengunggah bukti kerja pada divisinya.
 
@@ -19,8 +19,11 @@ Dokumen ini mendefinisikan aturan hak akses database (Supabase Row Level Securit
 | :--- | :--- | :--- | :--- | :--- |
 | **SUPER_ADMIN** | Semua | ✓ | Semua kolom | Hard delete / Soft delete |
 | **MANAGER_DIVISION** | Semua | ✓ | Semua kolom | Soft delete |
-| **TECHNICIAN** | Divisinya | X | `status`, `description` (divisinya) | X |
+| **TECHNICIAN** | Divisinya | X | `description` (divisinya); `status` lewat RPC | X |
 | **STAFF** | Semua (lintas divisi) | ✓ | `priority`, `dueDate` saja | X |
+
+- INSERT wajib `created_by_id = auth.uid()` (pembuat tidak bisa dipalsukan).
+- `status` **hanya** bisa diubah lewat RPC `update_task_status()` untuk semua role (trigger menolak `UPDATE` langsung), agar riwayat & notifikasi selalu tercatat. STAFF tidak boleh mengubah status.
 
 ---
 
@@ -37,10 +40,12 @@ Dokumen ini mendefinisikan aturan hak akses database (Supabase Row Level Securit
 ### 3. `task_status_history` *(Log, Immutable)*
 | Role | SELECT | INSERT | UPDATE | DELETE |
 | :--- | :--- | :--- | :--- | :--- |
-| **SUPER_ADMIN** | Scope = `tasks` | ✓ | ✓ | ✓ |
-| **MANAGER_DIVISION** | Scope = `tasks` | ✓ | X | X |
+| **SUPER_ADMIN** | Scope = `tasks` | via RPC | X | X |
+| **MANAGER_DIVISION** | Scope = `tasks` | via RPC | X | X |
 | **STAFF** | Scope = `tasks` | X | X | X |
-| **TECHNICIAN** | Scope = `tasks` | ✓ | X | X |
+| **TECHNICIAN** | Scope = `tasks` | via RPC | X | X |
+
+Tidak ada policy INSERT: baris riwayat hanya ditulis `update_task_status()` (`SECURITY DEFINER`) dengan `user_id = auth.uid()`.
 
 ---
 
@@ -51,6 +56,8 @@ Dokumen ini mendefinisikan aturan hak akses database (Supabase Row Level Securit
 | **MANAGER_DIVISION** | Scope = `tasks` | ✓ | X | ✓ (semua) |
 | **STAFF** | Scope = `tasks` | ✓ | X | X |
 | **TECHNICIAN** | Scope = `tasks` | ✓ | X | ✓ (hanya milik sendiri — `uploadedBy = auth.uid()`) |
+
+INSERT wajib `uploaded_by_id = auth.uid()`.
 
 ---
 
@@ -68,7 +75,11 @@ Dokumen ini mendefinisikan aturan hak akses database (Supabase Row Level Securit
 | **SUPER_ADMIN** | Scope = `tasks` | ✓ | ✓ | ✓ |
 | **MANAGER_DIVISION** | Scope = `tasks` | ✓ | X | X |
 | **STAFF** | Scope = `tasks` | X | X | X |
-| **TECHNICIAN** | Scope = `tasks` | ✓ | X | X |
+| **TECHNICIAN** | Scope = `tasks` | ✓ (divisinya) | X | X |
+
+INSERT wajib `created_by_id = auth.uid()` dan task berstatus `COMPLETED` serta belum dihapus.
+Saat ini belum ada policy UPDATE/DELETE untuk role mana pun (termasuk SUPER_ADMIN), jadi laporan
+benar-benar immutable lewat API dan Supabase langsung.
 
 ---
 
