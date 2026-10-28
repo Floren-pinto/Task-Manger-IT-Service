@@ -26,7 +26,7 @@ const allowedSortFields = new Set(["created_at", "due_date"]);
 
 export default function TasksPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { userProfile } = useAuth();
+  const { role: userRole } = useAuth();
   const [createOpen, setCreateOpen] = useState(false);
 
   const rawPage = Number(searchParams.get("page"));
@@ -206,10 +206,6 @@ export default function TasksPage() {
       dueTo,
   );
 
-  const userRole =
-    typeof userProfile?.role === "string"
-      ? userProfile.role.toUpperCase()
-      : "";
   const canCreate = taskCreateRoles.has(userRole);
 
   const handleCreate = () => {

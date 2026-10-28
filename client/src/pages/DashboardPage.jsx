@@ -100,7 +100,7 @@ function WorkloadCard({ title, items, emptyMessage, meta }) {
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { userProfile } = useAuth();
+  const { role: userRole } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -124,8 +124,6 @@ export default function DashboardPage() {
 
   useTasksChanged(handleTasksChanged);
 
-  const userRole =
-    typeof userProfile?.role === "string" ? userProfile.role.toUpperCase() : "";
   const canCreate = taskCreateRoles.has(userRole);
 
   const initialLoading =

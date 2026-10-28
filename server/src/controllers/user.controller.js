@@ -19,8 +19,6 @@ const ACTIVE_ASSIGNMENT_STATUSES = ["PENDING", "IN_PROGRESS", "ON_HOLD"];
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const BAN_DURATION = "876000h";
-
 function cleanString(value) {
   return typeof value === "string" ? value.trim() : value;
 }
@@ -85,33 +83,6 @@ async function hasActiveAssignments(supabase, userId) {
       !assignment.task.deleted_at &&
       ACTIVE_ASSIGNMENT_STATUSES.includes(assignment.task.status),
   );
-}
-
-async function rollbackProfile(supabase, userId, target) {
-  const { error } = await supabase
-    .from("users")
-    .update({
-      name: target.name,
-      role: target.role,
-      division_id: target.division_id,
-      is_active: target.is_active,
-      deleted_at: target.deleted_at,
-    })
-    .eq("id", userId);
-
-  if (error) {
-    console.error("Failed to rollback user profile:", error.message);
-  }
-}
-
-async function syncAuthStatus(userId, shouldBan) {
-  const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-    ban_duration: shouldBan ? BAN_DURATION : "none",
-  });
-
-  if (error) {
-    throw error;
-  }
 }
 
 export const listUsers = asyncHandler(async (req, res) => {
@@ -444,24 +415,7 @@ export const updateUser = asyncHandler(async (req, res) => {
     throw new ApiError(500, "Failed to update user");
   }
 
-  const touchesAuth =
-    hasOwn(updatePayload, "is_active") ||
-    hasOwn(updatePayload, "deleted_at");
-
-  if (touchesAuth) {
-    if (!supabaseAdmin) {
-      await rollbackProfile(req.supabase, userId, target);
-      throw new ApiError(503, "User admin is not configured");
-    }
-
-    try {
-      await syncAuthStatus(userId, !resultingIsActive);
-    } catch (authError) {
-      console.error("Failed to sync auth user status:", authError.message);
-      await rollbackProfile(req.supabase, userId, target);
-      throw new ApiError(500, "Failed to update user status");
-    }
-  }
-
+  // Arsip/nonaktif cukup lewat kolom is_active & deleted_at (dijamin RLS untuk
+  // SUPER_ADMIN). User nonaktif otomatis ditolak oleh attachProfile.
   return ok(res, updatedProfile, "User updated successfully");
 });

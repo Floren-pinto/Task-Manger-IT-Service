@@ -57,7 +57,7 @@ export function TaskDetailPage() {
   const params = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { userProfile } = useAuth();
+  const { role: userRole } = useAuth();
   const [statusUpdate, setStatusUpdate] = useState(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusError, setStatusError] = useState("");
@@ -74,8 +74,6 @@ export function TaskDetailPage() {
     refetch: refetchReports,
   } = useTaskReports(taskId);
   const { assignTask, createTaskAttachment, deleteTaskAttachment, loading: mutationsLoading } = useTaskMutations();
-  const userRole =
-    typeof userProfile?.role === "string" ? userProfile.role.toUpperCase() : "";
   const canUpdateStatus = statusUpdateRoles.has(userRole);
   const canEdit = taskEditRoles.has(userRole);
   const { success: showSuccessToast, error: showErrorToast } = useToast();

@@ -28,12 +28,12 @@ const navigationLinks = [
 ];
 
 export default function Sidebar() {
-  const { user, userProfile, signOut } = useAuth();
+  const { user, role, signOut } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
 
   const visibleLinks = navigationLinks.filter(
-    (item) => !item.roles || item.roles.includes(userProfile?.role),
+    (item) => !item.roles || item.roles.includes(role),
   );
 
   const handleLogout = async () => {

@@ -17,6 +17,7 @@ export function ClientAssetsSection({
   clientId,
   assets = [],
   canWrite = false,
+  canArchive = false,
   canViewArchived = false,
   showArchived = false,
   onToggleArchived,
@@ -136,16 +137,18 @@ export function ClientAssetsSection({
                   </Link>
 
                   {canWrite && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => openEditForm(asset)}
-                        className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                        aria-label={`Edit aset ${asset.name || ""}`}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
+                    <button
+                      type="button"
+                      onClick={() => openEditForm(asset)}
+                      className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                      aria-label={`Edit aset ${asset.name || ""}`}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
 
+                  {canArchive && (
+                    <>
                       {archived ? (
                         <button
                           type="button"

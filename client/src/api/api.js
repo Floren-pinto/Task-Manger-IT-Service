@@ -18,17 +18,27 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
+// attachProfile membalas 403 dengan pesan ini bila akun dinonaktifkan/diarsip.
+function isInactiveAccountError(error) {
+  return (
+    error.response?.status === 403 &&
+    error.response?.data?.message === "Account is inactive"
+  );
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
+    const inactive = isInactiveAccountError(error);
+
+    if (error.response?.status === 401 || inactive) {
       await supabase.auth.signOut();
 
       if (
         typeof window !== "undefined" &&
         window.location.pathname !== "/login"
       ) {
-        window.location.assign("/login");
+        window.location.assign(inactive ? "/login?notice=inactive" : "/login");
       }
     }
 

@@ -82,11 +82,34 @@ Dokumen ini mendefinisikan aturan hak akses database (Supabase Row Level Securit
 
 ---
 
+### 7b. `assets` *(mengikuti `clients`)*
+| Role | SELECT | INSERT | UPDATE | DELETE |
+| :--- | :--- | :--- | :--- | :--- |
+| **SUPER_ADMIN** | Semua (termasuk arsip) | ✓ | ✓ | Soft delete / restore |
+| **MANAGER_DIVISION** | Semua (termasuk arsip) | ✓ | ✓ | Soft delete / restore |
+| **STAFF** | Aktif saja | ✓ | ✓ (asset aktif) | X |
+| **TECHNICIAN** | Aktif saja | X | X | X |
+
+---
+
 ### 8. `divisions`, `teams`
 | Role | SELECT | INSERT | UPDATE | DELETE |
 | :--- | :--- | :--- | :--- | :--- |
 | **SUPER_ADMIN** | Semua | ✓ | ✓ | ✓ |
 | **SEMUA ROLE** *(Lainnya)* | ✓ | X | X | X |
+
+---
+
+### 9. `users`
+| Role | SELECT | INSERT | UPDATE | DELETE |
+| :--- | :--- | :--- | :--- | :--- |
+| **SUPER_ADMIN** | Semua (termasuk arsip) | via Auth (`POST /api/users`) | Semua kolom | Soft delete (`deleted_at`) |
+| **MANAGER_DIVISION** | Diri sendiri + semua non-SUPER_ADMIN aktif | X | `name`, `email` milik sendiri | X |
+| **STAFF** | Diri sendiri + TECHNICIAN aktif | X | `name`, `email` milik sendiri | X |
+| **TECHNICIAN** | Diri sendiri | X | `name`, `email` milik sendiri | X |
+
+User **nonaktif atau diarsip** tidak punya akses data apa pun: `get_my_role()` mengembalikan `NULL`,
+sehingga semua policy menolaknya. Ia hanya bisa membaca baris profilnya sendiri.
 
 ---
 

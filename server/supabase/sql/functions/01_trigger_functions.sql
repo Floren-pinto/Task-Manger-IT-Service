@@ -48,9 +48,11 @@ BEGIN
     );
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- function to automatically insert a notification when a task is STATUS_CHANGED
+-- recipients: assigned technicians + active managers of the task's division,
+-- excluding the user who made the change
 CREATE OR REPLACE FUNCTION insert_notification_on_task_status_change()
 RETURNS TRIGGER AS $$
 DECLARE 
@@ -72,14 +74,17 @@ BEGIN
     FROM (
         SELECT user_id FROM task_assignments WHERE task_id = NEW.task_id
         UNION
-        SELECT id FROM users WHERE role = 'MANAGER_DIVISION' AND division_id = (SELECT division_id FROM tasks WHERE id = NEW.task_id)
-        UNION
-        SELECT NEW.user_id
-    ) AS combined;
+        SELECT id FROM users
+        WHERE role = 'MANAGER_DIVISION'
+          AND is_active
+          AND deleted_at IS NULL
+          AND division_id = (SELECT division_id FROM tasks WHERE id = NEW.task_id)
+    ) AS combined
+    WHERE combined.user_id IS DISTINCT FROM NEW.user_id;
 
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- function to denied user to update sensetife columns in users table
 CREATE OR REPLACE FUNCTION enforce_user_column_restrictions()

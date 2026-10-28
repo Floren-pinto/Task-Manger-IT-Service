@@ -18,13 +18,11 @@ import {
 } from "./TaskFormControls";
 
 function TaskEditDialogContent({ task, onClose, onSaved, onDeleted }) {
-  const { userProfile } = useAuth();
+  const { role: userRole } = useAuth();
   const toast = useToast();
   const { divisions, loading: divisionsLoading, error: divisionsError } =
     useDivisions();
 
-  const userRole =
-    typeof userProfile?.role === "string" ? userProfile.role.toUpperCase() : "";
   const canEditFull =
     userRole === "SUPER_ADMIN" || userRole === "MANAGER_DIVISION";
   const isStaff = userRole === "STAFF";

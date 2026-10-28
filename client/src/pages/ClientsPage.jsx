@@ -19,7 +19,7 @@ import { pageSizeOptions } from "../constants/taskConstants";
 
 export default function ClientsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { userProfile } = useAuth();
+  const { role: userRole } = useAuth();
   const [createOpen, setCreateOpen] = useState(false);
 
   const rawPage = Number(searchParams.get("page"));
@@ -32,10 +32,6 @@ export default function ClientsPage() {
     : defaultClientLimit;
   const search = (searchParams.get("search") || "").trim();
 
-  const userRole =
-    typeof userProfile?.role === "string"
-      ? userProfile.role.toUpperCase()
-      : "";
   const canIncludeDeleted = clientDeleteRoles.has(userRole);
   const canCreate = clientCreateRoles.has(userRole);
   const includeDeleted =

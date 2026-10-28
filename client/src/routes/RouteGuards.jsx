@@ -3,9 +3,10 @@ import { useAuth } from "../contexts/AuthContext";
 import { Loading } from "../components/Loading";
 
 export function ProtectedRoute() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
 
+  if (loading) return <Loading />;
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
@@ -13,11 +14,11 @@ export function ProtectedRoute() {
   return <Outlet />;
 }
 
+// Selalu dipasang di dalam ProtectedRoute, jadi profil sudah dimuat di sini.
 export function AdminRoute() {
-  const { userProfile, loading } = useAuth();
+  const { role } = useAuth();
 
-  if (loading) return <Loading />;
-  if (userProfile?.role !== "SUPER_ADMIN") {
+  if (role !== "SUPER_ADMIN") {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -25,12 +26,15 @@ export function AdminRoute() {
 }
 
 export function PublicRoute() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
 
+  if (loading) return <Loading />;
   if (isAuthenticated) {
-    const from = location.state?.from?.pathname || "/dashboard";
-    return <Navigate to={from} replace />;
+    const from = location.state?.from;
+    // Search ikut disimpan agar filter di URL tidak hilang setelah login.
+    const target = from ? `${from.pathname}${from.search ?? ""}` : "/dashboard";
+    return <Navigate to={target} replace />;
   }
 
   return <Outlet />;

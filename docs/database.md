@@ -72,7 +72,17 @@ tidak terlihat oleh user tersebut.
 ### Helper `get_my_role()` dan `get_my_division()`
 
 Keduanya `SECURITY DEFINER`: berjalan dengan hak pembuat function sehingga bisa membaca tabel
-`users` tanpa terhalang RLS `users` sendiri (menghindari rekursi policy).
+`users` tanpa terhalang RLS `users` sendiri (menghindari rekursi policy). Keduanya juga memakai
+`SET search_path = public` agar tidak bisa dibajak lewat objek bernama sama di schema lain.
+
+Keduanya mengembalikan `NULL` untuk user yang **nonaktif atau diarsip**, sehingga setiap policy
+yang membandingkan `get_my_role() = '...'` otomatis menolak user itu, walaupun JWT-nya masih
+berlaku. Satu-satunya pengecualian: policy SELECT `users` mengizinkan user membaca baris miliknya
+sendiri, agar `attachProfile` bisa membalas 403 `"Account is inactive"`.
+
+Akun Auth baru dibuat trigger `handle_new_auth_user` dengan `is_active = FALSE`; `POST /api/users`
+yang mengaktifkannya. Jadi pendaftaran mandiri lewat anon key tidak mendapat akses data. Tetap
+matikan "Allow new users to sign up" di Supabase Dashboard.
 
 ### Pola "scope = tasks"
 
