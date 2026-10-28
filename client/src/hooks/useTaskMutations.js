@@ -6,6 +6,26 @@ import {
   deleteTaskAttachment as deleteTaskAttachmentService,
 } from "../services/taskService.js";
 import { allowedAttachmentTypes } from "../constants/taskConstants.js";
+import { getErrorMessage } from "../utils/errorMessage.js";
+
+// Supabase Storage menolak key dengan karakter non-ASCII dan beberapa simbol
+// (#, ?, %, ...). Nama asli tetap disimpan di kolom file_name.
+function toStorageFileName(name) {
+  const slugify = (value) =>
+    value
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase();
+
+  const dotIndex = name.lastIndexOf(".");
+  const base = dotIndex > 0 ? name.slice(0, dotIndex) : name;
+  const extension = dotIndex > 0 ? slugify(name.slice(dotIndex + 1)) : "";
+  const safeBase = slugify(base).slice(0, 80) || "lampiran";
+
+  return extension ? `${safeBase}.${extension}` : safeBase;
+}
 
 export const useTaskMutations = () => {
   const [loading, setLoading] = useState(false);
@@ -18,8 +38,7 @@ export const useTaskMutations = () => {
       const result = await assignTaskService(taskId, userId);
       return result;
     } catch (err) {
-      const errorMessage =
-        err.response?.data?.message || err.message || "Gagal menetapkan tugas.";
+      const errorMessage = getErrorMessage(err, "Gagal menetapkan tugas.");
       setError(errorMessage);
       throw err;
     } finally {
@@ -48,7 +67,7 @@ export const useTaskMutations = () => {
       }
 
       // 2. Storage path: "taskId/uniqueFileName"
-      const uniqueFileName = `${Date.now()}-${file.name}`;
+      const uniqueFileName = `${Date.now()}-${toStorageFileName(file.name)}`;
       const filePath = `${taskId}/${uniqueFileName}`;
 
       // 3. Upload ke Supabase Storage bucket "task_attachments" (dengan pengecekan RLS policy)
@@ -81,10 +100,7 @@ export const useTaskMutations = () => {
 
       return result;
     } catch (err) {
-      const errorMessage =
-        err.response?.data?.message ||
-        err.message ||
-        "Gagal mengunggah lampiran.";
+      const errorMessage = getErrorMessage(err, "Gagal mengunggah lampiran.");
       setError(errorMessage);
       throw err;
     } finally {
@@ -99,10 +115,7 @@ export const useTaskMutations = () => {
       const result = await deleteTaskAttachmentService(taskId, attachmentId);
       return result;
     } catch (err) {
-      const errorMessage =
-        err.response?.data?.message ||
-        err.message ||
-        "Gagal menghapus lampiran.";
+      const errorMessage = getErrorMessage(err, "Gagal menghapus lampiran.");
       setError(errorMessage);
       throw err;
     } finally {

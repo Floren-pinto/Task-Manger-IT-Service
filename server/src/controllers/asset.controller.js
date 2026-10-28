@@ -17,6 +17,33 @@ function cleanSerialNumber(value) {
   return cleanValue ? cleanValue : null;
 }
 
+// Asset yang sudah dipakai task tidak boleh pindah client: task lama akan
+// menunjuk asset milik client lain.
+async function assertAssetCanMoveToClient(supabase, assetId, clientId) {
+  const { data: asset, error } = await supabase
+    .from("assets")
+    .select("id, client_id")
+    .eq("id", assetId)
+    .maybeSingle();
+
+  if (error) throw new ApiError(500, "Failed to fetch asset");
+  if (!asset) throw new ApiError(404, "Asset not found");
+  if (asset.client_id === clientId) return;
+
+  const { count, error: countError } = await supabase
+    .from("tasks")
+    .select("id", { count: "exact", head: true })
+    .eq("asset_id", assetId);
+
+  if (countError) throw new ApiError(500, "Failed to validate asset usage");
+  if ((count ?? 0) > 0) {
+    throw new ApiError(
+      409,
+      "Asset is already used by tasks and cannot be moved to another client",
+    );
+  }
+}
+
 export const listAssets = asyncHandler(async (req, res) => {
   const { page, limit, search, clientId, includeDeleted } = req.query;
   const { safePage, safeLimit, from, to } = parsePaginationParams(page, limit);
@@ -175,7 +202,10 @@ export const updateAsset = asyncHandler(async (req, res) => {
   const cleanType = cleanString(type);
   if (cleanType) updatePayload.type = cleanType;
 
-  if (clientId) updatePayload.client_id = clientId;
+  if (clientId) {
+    await assertAssetCanMoveToClient(req.supabase, assetId, clientId);
+    updatePayload.client_id = clientId;
+  }
 
   if (typeof deleted === "boolean") {
     updatePayload.deleted_at = deleted ? new Date() : null;

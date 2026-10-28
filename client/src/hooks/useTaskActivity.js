@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { formatStatus, personName } from "../utils/formatters";
+import { formatStatus, parseDbDate, personName } from "../utils/formatters";
 
 export function useTaskActivity(histories = [], reports = []) {
   return useMemo(() => {
@@ -23,8 +23,8 @@ export function useTaskActivity(histories = [], reports = []) {
       })),
     ].sort(
       (first, second) =>
-        new Date(second.date || 0).getTime() -
-        new Date(first.date || 0).getTime(),
+        parseDbDate(second.date || 0).getTime() -
+        parseDbDate(first.date || 0).getTime(),
     );
   }, [histories, reports]);
 }

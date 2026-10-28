@@ -16,6 +16,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { updateStatusTask } from "../services/taskService";
 import {
+  attachmentDeleteRoles,
   reportCreateRoles,
   statusUpdateRoles,
   taskEditRoles,
@@ -24,6 +25,7 @@ import { useTaskActivity } from "../hooks/useTaskActivity";
 import { useTaskMutations } from "../hooks/useTaskMutations";
 import { useTaskReports } from "../hooks/useTaskReports";
 import { emitTasksChanged } from "../utils/taskEvents";
+import { getErrorMessage } from "../utils/errorMessage";
 
 import { TaskEditDialog } from "../components/tasks/TaskEditDialog";
 import { TaskHeader } from "../components/tasks/TaskHeader";
@@ -57,7 +59,7 @@ export function TaskDetailPage() {
   const params = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { role: userRole } = useAuth();
+  const { role: userRole, userProfile } = useAuth();
   const [statusUpdate, setStatusUpdate] = useState(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [statusError, setStatusError] = useState("");
@@ -76,6 +78,9 @@ export function TaskDetailPage() {
   const { assignTask, createTaskAttachment, deleteTaskAttachment, loading: mutationsLoading } = useTaskMutations();
   const canUpdateStatus = statusUpdateRoles.has(userRole);
   const canEdit = taskEditRoles.has(userRole);
+  const canDeleteAttachment = (file) =>
+    attachmentDeleteRoles.has(userRole) ||
+    (userRole === "TECHNICIAN" && file.uploadedBy?.id === userProfile?.id);
   const { success: showSuccessToast, error: showErrorToast } = useToast();
 
   const handleBackdropClick = (event) => {
@@ -91,9 +96,7 @@ export function TaskDetailPage() {
       refetch();
       emitTasksChanged();
     } catch (err) {
-      showErrorToast(
-        err.response?.data?.message || err.message || "Gagal menetapkan tugas.",
-      );
+      showErrorToast(getErrorMessage(err, "Gagal menetapkan tugas."));
       throw err;
     }
   };
@@ -104,7 +107,7 @@ export function TaskDetailPage() {
       showSuccessToast("Lampiran tugas berhasil diunggah.");
       refetch();
     } catch (err) {
-      showErrorToast(err.message || "Gagal mengunggah lampiran.");
+      showErrorToast(getErrorMessage(err, "Gagal mengunggah lampiran."));
     }
   };
 
@@ -114,7 +117,7 @@ export function TaskDetailPage() {
       showSuccessToast("Lampiran tugas berhasil dihapus.");
       refetch();
     } catch (err) {
-      showErrorToast(err.message || "Gagal menghapus lampiran.");
+      showErrorToast(getErrorMessage(err, "Gagal menghapus lampiran."));
     }
   };
 
@@ -122,7 +125,8 @@ export function TaskDetailPage() {
   const reports = Array.isArray(task?.reports) ? task.reports : [];
   const activity = useTaskActivity(histories, reports);
 
-  if (loading) {
+  // Saat refetch task yang sama, data lama tetap tampil agar drawer & dialog tidak ditutup.
+  if (loading && task?.id !== taskId) {
     return <Loading />;
   }
 
@@ -204,12 +208,15 @@ export function TaskDetailPage() {
 
       showSuccessToast("Status tugas berhasil diperbarui");
       emitTasksChanged();
+      // Muat ulang agar riwayat status & activity log ikut menampilkan perubahan.
+      refetch();
     } catch (err) {
       showErrorToast("Gagal memperbarui status tugas. Silakan coba lagi.");
       setStatusError(
-        err.response?.data?.message ||
-          err.message ||
+        getErrorMessage(
+          err,
           "Gagal memperbarui status tugas. Silakan coba lagi.",
+        ),
       );
     } finally {
       setStatusLoading(false);
@@ -291,7 +298,9 @@ export function TaskDetailPage() {
               attachments={attachments}
               onUpload={handleUploadAttachment}
               onDelete={handleDeleteAttachment}
+              canDelete={canDeleteAttachment}
               uploading={mutationsLoading}
+              deleting={mutationsLoading}
             />
           </DetailSection>
 

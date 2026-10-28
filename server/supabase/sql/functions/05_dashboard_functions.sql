@@ -1,8 +1,14 @@
 -- dashboard summary for the current user
 -- SECURITY INVOKER keeps the caller's RLS scope.
+-- "today" follows WIB (Asia/Jakarta). Timestamp columns store UTC without a
+-- zone, so the WIB day start is converted to that UTC wall-clock value.
 CREATE OR REPLACE FUNCTION get_dashboard_summary()
 RETURNS jsonb AS $$
-WITH visible_tasks AS (
+WITH local_day AS (
+    SELECT (date_trunc('day', now() AT TIME ZONE 'Asia/Jakarta')
+            AT TIME ZONE 'Asia/Jakarta') AT TIME ZONE 'UTC' AS start_utc
+),
+visible_tasks AS (
     SELECT t.*
     FROM tasks t
     WHERE t.deleted_at IS NULL
@@ -16,9 +22,10 @@ completed_today AS (
     SELECT count(DISTINCT h.task_id)::int AS total
     FROM task_status_history h
     JOIN visible_tasks t ON t.id = h.task_id
+    CROSS JOIN local_day
     WHERE h.new_status = 'COMPLETED'
-      AND h.changed_at >= current_date
-      AND h.changed_at < current_date + interval '1 day'
+      AND h.changed_at >= local_day.start_utc
+      AND h.changed_at < local_day.start_utc + interval '1 day'
 ),
 division_counts AS (
     SELECT d.id, d.name, count(t.id)::int AS total
@@ -43,7 +50,7 @@ summary AS (
         )::int AS active_tasks,
         count(*) FILTER (
             WHERE due_date IS NOT NULL
-              AND due_date < current_date
+              AND due_date < (SELECT start_utc FROM local_day)
               AND status NOT IN ('COMPLETED', 'CANCELLED')
         )::int AS overdue,
         count(*) FILTER (

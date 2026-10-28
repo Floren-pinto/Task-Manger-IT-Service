@@ -1,8 +1,20 @@
 import { priorityLabels, statusLabels } from "../constants/taskConstants";
 
+const DATE_TIME_WITHOUT_ZONE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/;
+
+// Kolom waktu di database bertipe TIMESTAMP tanpa zona dan berisi waktu UTC,
+// sehingga API mengirim "2026-10-28T03:00:00.123" tanpa "Z". new Date() akan
+// membacanya sebagai waktu lokal (bergeser 7–9 jam), jadi tandai sebagai UTC.
+export function parseDbDate(value) {
+  if (typeof value === "string" && DATE_TIME_WITHOUT_ZONE.test(value)) {
+    return new Date(`${value.replace(" ", "T")}Z`);
+  }
+  return new Date(value);
+}
+
 export function formatDate(value, includeTime = false) {
   if (!value) return "Belum tersedia";
-  const date = new Date(value);
+  const date = parseDbDate(value);
   if (Number.isNaN(date.getTime())) return "Tanggal tidak valid";
 
   return new Intl.DateTimeFormat(
@@ -71,7 +83,7 @@ const relativeTimeUnits = [
 
 export function formatRelativeTime(value) {
   if (!value) return "Waktu tidak tersedia";
-  const date = new Date(value);
+  const date = parseDbDate(value);
   if (Number.isNaN(date.getTime())) return "Tanggal tidak valid";
 
   const diffSeconds = Math.round((date.getTime() - Date.now()) / 1000);

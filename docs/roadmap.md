@@ -87,7 +87,7 @@ karena fitur baru di atas fondasi yang belum diuji akan makin sulit dirawat.
 | 3.4 | CI di GitHub Actions: lint + build + test pada setiap PR |
 | 3.5 | Migrasi SQL Supabase yang terkelola (Supabase CLI `supabase/migrations`) menggantikan copy-paste manual |
 | 3.6 | Pembersihan berkala file Storage yang tidak punya baris `task_attachments` |
-| 3.7 | Perhatikan zona waktu: `current_date` di `get_dashboard_summary()` memakai zona waktu database (UTC), sehingga "selesai hari ini"/"overdue" bisa bergeser untuk WIB/WITA |
+| 3.7 | ✅ (dashboard, filter tanggal, export CSV, dan tampilan client memakai WIB) Perhatikan zona waktu: `current_date` di `get_dashboard_summary()` memakai zona waktu database (UTC), sehingga "selesai hari ini"/"overdue" bisa bergeser untuk WIB/WITA |
 
 ### Fase 4 — Pengembangan lanjutan (opsional, untuk belajar hal baru)
 
