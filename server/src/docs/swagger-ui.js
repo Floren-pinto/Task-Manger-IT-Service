@@ -582,7 +582,7 @@ const swaggerOptions = {
           tags: ["Users"],
           summary: "Perbarui pengguna (SUPER_ADMIN)",
           description:
-            "Body parsial. Email immutable. Perubahan status juga menyinkronkan ban/unban ke Supabase Auth.",
+            "Body parsial. Email immutable. Arsip/nonaktif cukup mengubah is_active/deleted_at lewat RLS SUPER_ADMIN; user nonaktif ditolak di setiap request API.",
           parameters: [
             {
               name: "userId",
@@ -630,9 +630,6 @@ const swaggerOptions = {
                 "Email/divisi/SUPER_ADMIN terakhir tidak dapat diubah",
             },
             500: { description: "Gagal memperbarui pengguna" },
-            503: {
-              description: "SUPABASE_SERVICE_ROLE_KEY belum dikonfigurasi",
-            },
           },
         },
       },

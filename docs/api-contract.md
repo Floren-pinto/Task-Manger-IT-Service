@@ -138,10 +138,10 @@ Login/logout dilakukan **FE langsung ke Supabase Auth** (bukan endpoint Express)
   2. Mengubah `role`, `isActive`, atau `deleted` milik sendiri → 400.
   3. Menonaktifkan/menurunkan SUPER_ADMIN aktif terakhir → 409.
   4. `divisionId` berubah sementara user masih punya task aktif (`PENDING`/`IN_PROGRESS`/`ON_HOLD`) → 409.
-  5. `isActive: false` atau `deleted: true` → akun di-ban di Supabase Auth. `deleted: true` mengisi `deleted_at` + `is_active=false`. Restore (`deleted: false`) mengosongkan `deleted_at`; aktifkan eksplisit dengan `isActive: true`.
+  5. Status cukup diubah di tabel `users` lewat `req.supabase` (RLS mengizinkan SUPER_ADMIN; tidak memakai service role). User dengan `is_active=false` atau `deleted_at` terisi ditolak `attachProfile` (403 `"Account is inactive"`) di setiap request API. `deleted: true` mengisi `deleted_at` + `is_active=false`. Restore (`deleted: false`) mengosongkan `deleted_at`; aktifkan eksplisit dengan `isActive: true`.
   6. `42501`/trigger → 403; `PGRST116` → 404.
 - 200: `data` = profil user, message `"User updated successfully"`.
-- Error: 400 · 403 · 404 · 409 · 500 · 503.
+- Error: 400 · 403 · 404 · 409 · 500.
 
 **Tidak ada `DELETE /api/users`.** Hapus permanen mustahil karena relasi `onDelete: Restrict`; hapus = soft delete lewat `PATCH { deleted: true }` (D9).
 
@@ -603,7 +603,7 @@ Belum termasuk: export PDF dan SLA report (halaman `/reports` dialihkan ke `/ser
 Kontrak aktual ada di **Bagian 2**. Ringkasan keputusan implementasi:
 
 - `POST /api/users` dan `PATCH /api/users/:userId` hanya SUPER_ADMIN (`requireSuperAdmin`); `GET /api/users` tetap untuk semua role dengan pembatasan RLS.
-- Create memakai Supabase Auth Admin + kompensasi `deleteUser` bila update profil gagal. Tanpa `SUPABASE_SERVICE_ROLE_KEY`, create/ban/unban mengembalikan **503**.
+- Create memakai Supabase Auth Admin + kompensasi `deleteUser` bila update profil gagal. Tanpa `SUPABASE_SERVICE_ROLE_KEY`, create mengembalikan **503**. Update/arsip/nonaktif tidak butuh service role (cukup RLS SUPER_ADMIN).
 - PATCH menolak perubahan role/status milik sendiri, menolak menonaktifkan SUPER_ADMIN aktif terakhir, dan menolak pindah divisi bila user masih punya task aktif.
 - Email immutable pada MVP. Reset password = `resetPasswordForEmail` dari FE (FR-05), bukan endpoint ini.
 - `users` UPDATE policy dipersempit ke SUPER_ADMIN atau profil sendiri; MANAGER_DIVISION tidak lagi bisa mengubah user lain (termasuk `is_active`).
