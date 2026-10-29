@@ -20,11 +20,16 @@ npm run dev:server       # node --watch, port 3000
 npm run dev:client       # vite, port 5173
 npm run lint -w client   # oxlint
 npm run build -w client  # cek build
+npm test                 # unit test server + client (Vitest, tanpa database)
+npm run test:integration # API + RLS per role ke project Supabase TEST (server/.env.test)
 ```
 
-Belum ada test otomatis. Setelah mengubah client, minimal jalankan `lint` dan `build`.
-Env: `server/.env` (`SUPABASE_PROJECT_URL`, `SUPABASE_ANON_KEY`, opsional `SUPABASE_SERVICE_ROLE_KEY`)
-dan `client/.env` (`VITE_*`). **Jangan pernah membaca, mencetak, atau meng-commit file `.env`.**
+Setelah mengubah kode, jalankan `npm test`; untuk client juga `lint` dan `build`. Helper murni baru
+→ tambahkan unit test. Perubahan RLS/trigger/RPC atau endpoint → tambahkan/ubah integration test
+di `server/tests/integration/` (panduan: `docs/testing.md`).
+Env: `server/.env` (`SUPABASE_PROJECT_URL`, `SUPABASE_ANON_KEY`, opsional `SUPABASE_SERVICE_ROLE_KEY`),
+`server/.env.test` (project Supabase khusus test), dan `client/.env` (`VITE_*`).
+**Jangan pernah membaca, mencetak, atau meng-commit file `.env` / `.env.*`.**
 
 ## Arsitektur server
 

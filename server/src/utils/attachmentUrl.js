@@ -3,6 +3,20 @@ export const ATTACHMENT_BUCKET = "task_attachments";
 // Signed URL berlaku 1 hari (24 jam)
 export const ATTACHMENT_URL_TTL_SECONDS = 60 * 60 * 24;
 
+// Path wajib tepat "<taskId>/<namaFile>": satu folder, tanpa ".." atau backslash.
+export function isValidAttachmentPath(filePath, taskId) {
+  if (typeof filePath !== "string") return false;
+  const [folder, fileName, ...rest] = filePath.split("/");
+  return (
+    folder === String(taskId) &&
+    rest.length === 0 &&
+    Boolean(fileName) &&
+    fileName !== "." &&
+    fileName !== ".." &&
+    !fileName.includes("\\")
+  );
+}
+
 const isAbsoluteUrl = (value) =>
   typeof value === "string" && /^https?:\/\//i.test(value);
 

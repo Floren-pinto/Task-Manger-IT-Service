@@ -7,25 +7,7 @@ import {
 } from "../services/taskService.js";
 import { allowedAttachmentTypes } from "../constants/taskConstants.js";
 import { getErrorMessage } from "../utils/errorMessage.js";
-
-// Supabase Storage menolak key dengan karakter non-ASCII dan beberapa simbol
-// (#, ?, %, ...). Nama asli tetap disimpan di kolom file_name.
-function toStorageFileName(name) {
-  const slugify = (value) =>
-    value
-      .normalize("NFKD")
-      .replace(/[̀-ͯ]/g, "")
-      .replace(/[^a-zA-Z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .toLowerCase();
-
-  const dotIndex = name.lastIndexOf(".");
-  const base = dotIndex > 0 ? name.slice(0, dotIndex) : name;
-  const extension = dotIndex > 0 ? slugify(name.slice(dotIndex + 1)) : "";
-  const safeBase = slugify(base).slice(0, 80) || "lampiran";
-
-  return extension ? `${safeBase}.${extension}` : safeBase;
-}
+import { toStorageFileName } from "../utils/fileName.js";
 
 export const useTaskMutations = () => {
   const [loading, setLoading] = useState(false);
