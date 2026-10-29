@@ -80,6 +80,11 @@ yang membandingkan `get_my_role() = '...'` otomatis menolak user itu, walaupun J
 berlaku. Satu-satunya pengecualian: policy SELECT `users` mengizinkan user membaca baris miliknya
 sendiri, agar `attachProfile` bisa membalas 403 `"Account is inactive"`.
 
+> **Aturan saat menulis policy baru:** setiap cabang kondisi harus memuat `get_my_role()`. Kondisi
+> seperti `USING (true)` atau `deleted_at IS NULL` saja tetap terbuka untuk akun nonaktif dan
+> akun hasil sign-up mandiri. Integration test `inactiveAccount.test.js` memeriksa ini untuk
+> `clients`, `assets`, `tasks`, dan `divisions`.
+
 Akun Auth baru dibuat trigger `handle_new_auth_user` dengan `is_active = FALSE`; `POST /api/users`
 yang mengaktifkannya. Jadi pendaftaran mandiri lewat anon key tidak mendapat akses data. Tetap
 matikan "Allow new users to sign up" di Supabase Dashboard.

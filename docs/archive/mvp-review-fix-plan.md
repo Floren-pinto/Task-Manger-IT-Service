@@ -30,6 +30,10 @@
 >   menjadi `SECURITY DEFINER` dengan cek role/divisi; `task_status_history` tanpa policy INSERT;
 >   trigger menolak perubahan `status` di luar RPC untuk semua role. File policy 04/06/07/08
 >   sekarang aman dijalankan ulang.
+> - Susulan A1 (ditemukan saat menyiapkan integration test): policy SELECT `clients`, `assets`
+>   (`deleted_at IS NULL` tanpa cek role) dan `divisions`, `teams` (`true`) masih terbuka untuk akun
+>   nonaktif/sign-up mandiri. Diperbaiki di `01_divisions_teams_policy.sql`,
+>   `02_clients_policy.sql`, `03_assets_policy.sql` (sekarang aman dijalankan ulang).
 > - Belum termasuk plan ini: C8 (pesan error Bahasa Indonesia, roadmap 1.5), state machine status
 >   (roadmap 1.4), A7 (hardening produksi, roadmap 3.1).
 

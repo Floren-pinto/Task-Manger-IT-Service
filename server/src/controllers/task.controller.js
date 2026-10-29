@@ -5,6 +5,7 @@ import { created, ok } from "../utils/ApiResponse.js";
 import {
   ATTACHMENT_BUCKET,
   attachSignedAttachmentUrls,
+  isValidAttachmentPath,
 } from "../utils/attachmentUrl.js";
 import {
   isDateOnly,
@@ -537,20 +538,6 @@ const ALLOWED_ATTACHMENT_TYPES = new Set([
   "image/webp",
   "application/pdf",
 ]);
-
-// Path wajib tepat "<taskId>/<namaFile>": satu folder, tanpa ".." atau backslash.
-function isValidAttachmentPath(filePath, taskId) {
-  if (typeof filePath !== "string") return false;
-  const [folder, fileName, ...rest] = filePath.split("/");
-  return (
-    folder === String(taskId) &&
-    rest.length === 0 &&
-    Boolean(fileName) &&
-    fileName !== "." &&
-    fileName !== ".." &&
-    !fileName.includes("\\")
-  );
-}
 
 // storage.remove() mengembalikan { error } alih-alih melempar.
 async function removeAttachmentFile(supabase, filePath) {

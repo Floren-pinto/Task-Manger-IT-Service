@@ -11,6 +11,7 @@ Mulai dari sini. Urutan di bawah adalah urutan baca yang disarankan untuk memaha
 | [erd.md](erd.md) | Diagram relasi tabel + kamus data |
 | [database.md](database.md) | RLS, trigger, function/RPC, storage, realtime, kode error PostgreSQL |
 | [tech-stack.md](tech-stack.md) | Teknologi yang dipakai, untuk apa, dan konsep yang perlu dikuasai |
+| [testing.md](testing.md) | Unit test & integration test (API + RLS per role), cara menyiapkan project Supabase test |
 | [roadmap.md](roadmap.md) | Status MVP terhadap SRS + rencana improvement |
 
 ## Spesifikasi (acuan saat membangun fitur)
