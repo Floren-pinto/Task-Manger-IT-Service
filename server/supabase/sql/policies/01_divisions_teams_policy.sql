@@ -1,33 +1,39 @@
--- 
+-- safe to re-run
+-- Read access requires an active profile (get_my_role() is NULL for
+-- inactive/archived accounts and self sign-ups).
+--
 -- Division
--- 
+--
 -- select policy
-create policy "select divisions able for all role"
-on divisions
-for select
-to authenticated
-using (true);
+DROP POLICY IF EXISTS "select divisions able for all role" ON divisions;
+CREATE POLICY "select divisions able for all role"
+ON divisions
+FOR SELECT
+TO authenticated
+USING (get_my_role() IS NOT NULL);
 -- for all to super_admin
-create policy "all action divisions only for super admin"
-on divisions
-for all
-to authenticated
-using (get_my_role() = 'SUPER_ADMIN')
-with check (get_my_role() = 'SUPER_ADMIN');
-
--- 
+DROP POLICY IF EXISTS "all action divisions only for super admin" ON divisions;
+CREATE POLICY "all action divisions only for super admin"
+ON divisions
+FOR ALL
+TO authenticated
+USING (get_my_role() = 'SUPER_ADMIN')
+WITH CHECK (get_my_role() = 'SUPER_ADMIN');
+--
 -- Teams
--- 
+--
 -- select policy
-create policy "select teams able for all role"
-on teams
-for select
-to authenticated
-using (true);
+DROP POLICY IF EXISTS "select teams able for all role" ON teams;
+CREATE POLICY "select teams able for all role"
+ON teams
+FOR SELECT
+TO authenticated
+USING (get_my_role() IS NOT NULL);
 -- for all to super_admin
-create policy "all action teams only for super admin"
-on teams
-for all
-to authenticated
-using (get_my_role() = 'SUPER_ADMIN')
-with check (get_my_role() = 'SUPER_ADMIN');
+DROP POLICY IF EXISTS "all action teams only for super admin" ON teams;
+CREATE POLICY "all action teams only for super admin"
+ON teams
+FOR ALL
+TO authenticated
+USING (get_my_role() = 'SUPER_ADMIN')
+WITH CHECK (get_my_role() = 'SUPER_ADMIN');

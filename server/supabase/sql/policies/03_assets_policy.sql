@@ -1,6 +1,7 @@
 -- SELECT POLICY
 -- STAFF/TECHNICIAN hanya melihat asset aktif; SUPER_ADMIN/MANAGER_DIVISION
--- boleh melihat asset yang sudah di-soft delete.
+-- boleh melihat asset yang sudah di-soft delete. Akun nonaktif (get_my_role()
+-- NULL) tidak melihat apa pun.
 DROP POLICY IF EXISTS "select assets able for all role" ON assets;
 DROP POLICY IF EXISTS "select assets per role and deleted state" ON assets;
 CREATE POLICY "select assets per role and deleted state"
@@ -8,8 +9,8 @@ ON assets
 FOR SELECT
 TO AUTHENTICATED
 USING (
-    deleted_at IS NULL
-    OR get_my_role() IN ('SUPER_ADMIN', 'MANAGER_DIVISION')
+    get_my_role() IN ('SUPER_ADMIN', 'MANAGER_DIVISION')
+    OR (deleted_at IS NULL AND get_my_role() IN ('STAFF', 'TECHNICIAN'))
 );
 
 -- Hak tulis mengikuti tabel clients: TECHNICIAN hanya membaca, STAFF boleh
